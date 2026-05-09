@@ -6,6 +6,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { LockersModule } from './modules/lockers/lockers.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { validateEnvironment } from './config/env.validation';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -20,5 +21,6 @@ import { validateEnvironment } from './config/env.validation';
     IntegrationsModule,
     LockersModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

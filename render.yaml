@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: city-mall-smart-locker-api
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npm run prisma:generate && npm run build
+    startCommand: npm run start:deploy
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_URL
+        value: https://city-mall-smart-locker.netlify.app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: city-mall-smart-locker-db
+          property: connectionString
+      - key: ADMIN_PIN
+        sync: false
+      - key: ADMIN_SESSION_SECRET
+        generateValue: true
+      - key: PAYMENT_MODE
+        value: MOCK
+      - key: SMS_MODE
+        value: ESKIZ
+      - key: SMS_PROVIDER
+        value: ESKIZ
+      - key: SMS_ALLOW_LOCAL_SEND
+        value: "false"
+      - key: ESKIZ_EMAIL
+        sync: false
+      - key: ESKIZ_PASSWORD
+        sync: false
+      - key: ESKIZ_SENDER
+        value: "4546"
+      - key: HARDWARE_MODE
+        value: MOCK
+      - key: ONE_C_MODE
+        value: FILE
+      - key: CCTV_MODE
+        value: MANUAL
+      - key: CCTV_RETENTION_DAYS
+        value: "30"
+
+databases:
+  - name: city-mall-smart-locker-db
+    plan: free
+    databaseName: locker_system
+    user: locker_user

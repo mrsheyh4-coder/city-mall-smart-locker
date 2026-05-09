@@ -24,8 +24,12 @@ async function bootstrap() {
     header: 'X-API-Version',
     defaultVersion: '1',
   });
+  const allowedOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
   });
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(
