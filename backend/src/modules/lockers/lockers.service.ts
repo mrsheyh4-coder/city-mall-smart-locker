@@ -6,7 +6,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { randomBytes, randomInt } from 'crypto';
+import { createHash, randomBytes, randomInt } from 'crypto';
 import {
   AccessMethod,
   BookingStatus,
@@ -312,6 +312,8 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
+      await this.assertSmsVerified(dto.phone, dto.smsVerificationToken);
+
       const locker = await this.findByNumber(dto.lockerId);
 
       if (locker.size !== dto.lockerSize) {
@@ -399,6 +401,106 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
         },
       };
     });
+  }
+
+  async requestSmsAuth(phone: string) {
+    await this.prisma.smsVerification.deleteMany({
+      where: {
+        phone,
+        verifiedAt: null,
+        expiresAt: { lt: new Date() },
+      },
+    });
+
+    const recentRequests = await this.prisma.smsVerification.count({
+      where: {
+        phone,
+        createdAt: { gte: new Date(Date.now() - 10 * 60_000) },
+      },
+    });
+
+    if (recentRequests >= 5) {
+      throw new BadRequestException('Too many SMS requests. Try again later.');
+    }
+
+    const code = String(randomInt(0, 10_000)).padStart(4, '0');
+    const expiresAt = new Date(Date.now() + 5 * 60_000);
+    const user = await this.prisma.user.upsert({
+      where: { phone },
+      update: {},
+      create: { phone },
+    });
+
+    await this.prisma.smsVerification.create({
+      data: {
+        phone,
+        userId: user.id,
+        codeHash: this.hashSmsCode(phone, code),
+        expiresAt,
+      },
+    });
+
+    const sms = await this.queueAccessSms(
+      phone,
+      `Tashkent City Mall tasdiqlash kodi: ${code}`,
+    );
+
+    await this.createLog(
+      'INFO',
+      'sms-auth',
+      `SMS auth code ${sms.state} for ${this.maskPhone(phone)}`,
+    );
+
+    return {
+      sent: true,
+      expiresAt: expiresAt.toISOString(),
+      sms,
+      devCode: this.shouldExposeMockSmsCode(sms.state) ? code : undefined,
+    };
+  }
+
+  async verifySmsAuth(phone: string, code: string) {
+    const verification = await this.prisma.smsVerification.findFirst({
+      where: {
+        phone,
+        verifiedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!verification) {
+      throw new BadRequestException('SMS code expired. Request a new code.');
+    }
+
+    if (verification.attempts >= 5) {
+      throw new BadRequestException('Too many invalid SMS code attempts.');
+    }
+
+    if (verification.codeHash !== this.hashSmsCode(phone, code)) {
+      await this.prisma.smsVerification.update({
+        where: { id: verification.id },
+        data: { attempts: { increment: 1 } },
+      });
+      throw new BadRequestException('Invalid SMS code.');
+    }
+
+    const token = randomBytes(24).toString('base64url');
+    const updated = await this.prisma.smsVerification.update({
+      where: { id: verification.id },
+      data: {
+        token,
+        verifiedAt: new Date(),
+      },
+    });
+
+    await this.createLog('INFO', 'sms-auth', `Phone verified: ${this.maskPhone(phone)}`);
+
+    return {
+      verified: true,
+      token,
+      expiresAt: updated.expiresAt.toISOString(),
+    };
   }
 
   async mockPayment(bookingId: string) {
@@ -502,13 +604,20 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
 
   async activateDemoPayment(lockerId: number, durationMinutes: number) {
     const locker = await this.findByNumber(lockerId);
+    const phone = '+998900000000';
+    const smsAuth = await this.requestSmsAuth(phone);
+    if (!smsAuth.devCode) {
+      throw new BadRequestException('Demo payment requires local SMS mock mode');
+    }
+    const verified = await this.verifySmsAuth(phone, smsAuth.devCode);
     const booking = await this.createBooking({
       lockerId,
       lockerSize: locker.size,
       durationMinutes,
-      phone: '+998900000000',
+      phone,
       customerName: 'Walk-in customer',
       termsAccepted: true,
+      smsVerificationToken: verified.token,
     });
 
     return this.mockPayment(booking.booking.id);
@@ -1281,6 +1390,50 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
 
   private generatePin() {
     return String(randomInt(1000, 10000));
+  }
+
+  private async assertSmsVerified(phone: string, token?: string) {
+    if (!token) {
+      throw new BadRequestException('Phone number must be verified by SMS');
+    }
+
+    const verification = await this.prisma.smsVerification.findFirst({
+      where: {
+        phone,
+        token,
+        verifiedAt: { not: null },
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!verification) {
+      throw new BadRequestException('SMS verification is missing or expired');
+    }
+  }
+
+  private hashSmsCode(phone: string, code: string) {
+    return createHash('sha256')
+      .update(
+        `${this.normalizePhone(phone)}:${code}:${process.env.ADMIN_SESSION_SECRET ?? 'dev-secret'}`,
+      )
+      .digest('hex');
+  }
+
+  private normalizePhone(phone: string) {
+    return phone.replace(/\D/g, '').replace(/^0+/, '');
+  }
+
+  private maskPhone(phone: string) {
+    const normalized = this.normalizePhone(phone);
+    if (normalized.length <= 6) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, 5)}***${normalized.slice(-3)}`;
+  }
+
+  private shouldExposeMockSmsCode(state?: string) {
+    return process.env.NODE_ENV !== 'production' || state === 'MOCK';
   }
 
   private buildQrPayload(

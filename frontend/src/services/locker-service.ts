@@ -243,6 +243,7 @@ export async function createBooking(input: {
   phone: string;
   customerName?: string;
   termsAccepted: boolean;
+  smsVerificationToken?: string;
 }): Promise<BookingResponse> {
   try {
     const response = await fetch(`${API_URL}/booking/create`, {
@@ -277,6 +278,71 @@ export async function createBooking(input: {
         createdAt: new Date().toISOString(),
       },
       access: payment.access,
+    };
+  }
+}
+
+export async function requestSmsAuth(phone: string): Promise<{
+  sent: boolean;
+  expiresAt: string;
+  devCode?: string;
+}> {
+  try {
+    const response = await fetch(`${API_URL}/sms/auth/request`, {
+      method: 'POST',
+      headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await getApiErrorMessage(response));
+    }
+
+    return response.json();
+  } catch (error) {
+    if (!isNetworkError(error)) {
+      throw error;
+    }
+
+    const devCode = createLocalSmsCode(phone);
+    return {
+      sent: true,
+      expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      devCode,
+    };
+  }
+}
+
+export async function verifySmsAuth(phone: string, code: string): Promise<{
+  verified: boolean;
+  token: string;
+  expiresAt: string;
+}> {
+  try {
+    const response = await fetch(`${API_URL}/sms/auth/verify`, {
+      method: 'POST',
+      headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await getApiErrorMessage(response));
+    }
+
+    return response.json();
+  } catch (error) {
+    if (!isNetworkError(error)) {
+      throw error;
+    }
+
+    if (code !== getLocalSmsCode(phone)) {
+      throw new Error('Invalid SMS code.');
+    }
+
+    return {
+      verified: true,
+      token: `demo-sms-${Date.now()}`,
+      expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
     };
   }
 }
@@ -1055,6 +1121,27 @@ function setDemoRevenue(value: number) {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(DEMO_REVENUE_KEY, String(value));
   }
+}
+
+function createLocalSmsCode(phone: string) {
+  const code = String(Math.floor(Math.random() * 10_000)).padStart(4, '0');
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(`city-mall-sms-code-${normalizePhone(phone)}`, code);
+  }
+
+  return code;
+}
+
+function getLocalSmsCode(phone: string) {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return window.localStorage.getItem(`city-mall-sms-code-${normalizePhone(phone)}`);
+}
+
+function normalizePhone(phone: string) {
+  return phone.replace(/\D/g, '').replace(/^0+/, '');
 }
 
 function buildLocalTariffs() {

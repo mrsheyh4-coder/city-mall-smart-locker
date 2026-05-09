@@ -65,6 +65,24 @@ export class CreateBookingDto {
 
   @IsBoolean()
   termsAccepted: boolean;
+
+  @IsString()
+  @IsOptional()
+  smsVerificationToken?: string;
+}
+
+export class RequestSmsAuthDto {
+  @IsPhoneNumber()
+  phone: string;
+}
+
+export class VerifySmsAuthDto {
+  @IsPhoneNumber()
+  phone: string;
+
+  @IsString()
+  @Length(4, 4)
+  code: string;
 }
 
 export class MockPaymentDto {

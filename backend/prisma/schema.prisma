@@ -71,6 +71,7 @@ model User {
   bookings    Booking[]
   payments    Payment[]
   accessCodes AccessCode[]
+  smsVerifications SmsVerification[]
 
   @@map("users")
 }
@@ -192,6 +193,24 @@ model AccessCode {
   @@index([pinCode])
   @@index([expiresAt])
   @@map("access_codes")
+}
+
+model SmsVerification {
+  id          String    @id @default(cuid())
+  phone       String
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  codeHash    String
+  token       String?
+  attempts    Int       @default(0)
+  verifiedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([phone])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sms_verifications")
 }
 
 model AccessLog {

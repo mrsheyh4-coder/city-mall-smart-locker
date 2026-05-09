@@ -19,11 +19,11 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { createBooking, fetchLockers, fetchTariffs, mockPayment, verifyAccess } from '@/services/locker-service';
+import { createBooking, fetchLockers, fetchTariffs, mockPayment, requestSmsAuth, verifyAccess, verifySmsAuth } from '@/services/locker-service';
 import type { Language } from '@/lib/i18n';
 import type { BookingResponse, DemoPaymentResponse, Locker, LockerSize, Tariff } from '@/types/locker';
 
-type Step = 'language' | 'size' | 'duration' | 'phone' | 'terms' | 'locker' | 'payment' | 'success' | 'access';
+type Step = 'language' | 'size' | 'duration' | 'phone' | 'sms' | 'terms' | 'locker' | 'payment' | 'success' | 'access';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
 
@@ -35,6 +35,12 @@ const text = {
     size: 'Yashik hajmini tanlang',
     duration: 'Saqlash muddatini tanlang',
     phone: 'Telefon raqamingiz',
+    sms: 'SMS kodni kiriting',
+    smsSent: '4 xonali kod telefon raqamingizga yuborildi.',
+    smsCode: 'Tasdiqlash kodi',
+    smsSend: 'SMS kod yuborish',
+    smsVerify: 'Tasdiqlash',
+    smsRequired: 'SMS kodni tasdiqlang',
     terms: 'Saqlash shartlari',
     termsIntro: 'Davom etish uchun saqlash shartlari va taqiqlarni tasdiqlang.',
     termsRule1: 'Maksimal saqlash muddati 24 soat.',
@@ -79,6 +85,12 @@ const text = {
     size: 'Выберите размер ячейки',
     duration: 'Выберите срок хранения',
     phone: 'Ваш номер телефона',
+    sms: 'Введите SMS код',
+    smsSent: '4-значный код отправлен на ваш телефон.',
+    smsCode: 'Код подтверждения',
+    smsSend: 'Отправить SMS',
+    smsVerify: 'Подтвердить',
+    smsRequired: 'Подтвердите SMS код',
     terms: 'Условия хранения',
     termsIntro: 'Подтвердите условия хранения и ограничения, чтобы продолжить.',
     termsRule1: 'Максимальный срок хранения - 24 часа.',
@@ -123,6 +135,12 @@ const text = {
     size: 'Choose locker size',
     duration: 'Choose storage duration',
     phone: 'Your phone number',
+    sms: 'Enter SMS code',
+    smsSent: 'A 4-digit code was sent to your phone.',
+    smsCode: 'Verification code',
+    smsSend: 'Send SMS code',
+    smsVerify: 'Verify',
+    smsRequired: 'Verify the SMS code',
     terms: 'Storage terms',
     termsIntro: 'Confirm the storage terms and restrictions to continue.',
     termsRule1: 'Maximum storage duration is 24 hours.',
@@ -199,6 +217,11 @@ export function CustomerTerminal() {
   const [size, setSize] = useState<LockerSize>('MEDIUM');
   const [duration, setDuration] = useState<Tariff>(defaultDurations[5]);
   const [phone, setPhone] = useState('+998');
+  const [smsCode, setSmsCode] = useState('');
+  const [smsToken, setSmsToken] = useState<string | null>(null);
+  const [smsDevCode, setSmsDevCode] = useState<string | null>(null);
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [isVerifyingSms, setIsVerifyingSms] = useState(false);
   const [selectedLocker, setSelectedLocker] = useState<Locker | null>(null);
   const [booking, setBooking] = useState<BookingResponse | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -262,6 +285,11 @@ export function CustomerTerminal() {
     setSize('MEDIUM');
     setDuration(defaultDurations[5]);
     setPhone('+998');
+    setSmsCode('');
+    setSmsToken(null);
+    setSmsDevCode(null);
+    setIsSendingSms(false);
+    setIsVerifyingSms(false);
     setSelectedLocker(null);
     setBooking(null);
     setTermsAccepted(false);
@@ -292,8 +320,13 @@ export function CustomerTerminal() {
       return;
     }
 
-    if (step === 'terms') {
+    if (step === 'sms') {
       setStep('phone');
+      return;
+    }
+
+    if (step === 'terms') {
+      setStep('sms');
       return;
     }
 
@@ -338,6 +371,12 @@ export function CustomerTerminal() {
       return;
     }
 
+    if (!smsToken) {
+      setError(t.smsRequired);
+      setStep('sms');
+      return;
+    }
+
     setError(null);
     setIsPaying(true);
     setStep('payment');
@@ -350,6 +389,7 @@ export function CustomerTerminal() {
         phone,
         customerName: 'Terminal customer',
         termsAccepted,
+        smsVerificationToken: smsToken,
       });
       setBooking(created);
       await new Promise((resolve) => window.setTimeout(resolve, 1300));
@@ -362,6 +402,49 @@ export function CustomerTerminal() {
       setStep('locker');
     } finally {
       setIsPaying(false);
+    }
+  }
+
+  async function sendSmsCode() {
+    if (phone.length < 9) {
+      setError(t.phoneRequired);
+      return;
+    }
+
+    setError(null);
+    setSmsToken(null);
+    setSmsCode('');
+    setSmsDevCode(null);
+    setIsSendingSms(true);
+
+    try {
+      const result = await requestSmsAuth(phone);
+      setSmsDevCode(result.devCode ?? null);
+      setStep('sms');
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'SMS failed');
+    } finally {
+      setIsSendingSms(false);
+    }
+  }
+
+  async function submitSmsCode() {
+    if (smsCode.trim().length !== 4) {
+      setError(t.smsRequired);
+      return;
+    }
+
+    setError(null);
+    setIsVerifyingSms(true);
+
+    try {
+      const result = await verifySmsAuth(phone, smsCode.trim());
+      setSmsToken(result.token);
+      setStep('terms');
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'SMS failed');
+    } finally {
+      setIsVerifyingSms(false);
     }
   }
 
@@ -581,14 +664,53 @@ export function CustomerTerminal() {
                   <h2 className="mt-6 text-5xl font-semibold">{t.phone}</h2>
                   <input
                     value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
+                    onChange={(event) => {
+                      setPhone(event.target.value);
+                      setSmsToken(null);
+                      setSmsCode('');
+                      setSmsDevCode(null);
+                    }}
                     inputMode="tel"
                     placeholder={t.phoneHint}
                     className="mt-8 min-h-24 w-full rounded-[2rem] border border-[#ffffff]/10 bg-[#1a212f]/70 px-8 text-5xl font-semibold text-[#ffffff] outline-none ring-[#b3806e]/40 focus:ring-4"
                   />
                   <div className="mt-8">
-                    <Button className="min-h-20 w-full text-xl" onClick={() => setStep('terms')}>
-                      {t.continue}
+                    <Button className="min-h-20 w-full text-xl" disabled={isSendingSms} onClick={() => void sendSmsCode()}>
+                      {t.smsSend}
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            </Panel>
+          ) : null}
+
+          {step === 'sms' ? (
+            <Panel key="sms">
+              <div className="mx-auto w-full max-w-3xl">
+                <Card className="p-10">
+                  <Phone className="text-[#b3806e]" size={60} />
+                  <h2 className="mt-6 text-5xl font-semibold">{t.sms}</h2>
+                  <p className="mt-4 text-xl text-[#ffffff]/70">{t.smsSent}</p>
+                  <p className="mt-2 text-lg font-semibold text-[#ffffff]/80">{phone}</p>
+                  {smsDevCode ? (
+                    <p className="mt-5 rounded-2xl border border-[#b3806e]/35 bg-[#b3806e]/12 px-5 py-4 text-xl font-bold">
+                      Demo kod: {smsDevCode}
+                    </p>
+                  ) : null}
+                  <input
+                    value={smsCode}
+                    onChange={(event) => setSmsCode(event.target.value.replace(/\D/g, '').slice(0, 4))}
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder={t.smsCode}
+                    className="mt-8 min-h-24 w-full rounded-[2rem] border border-[#ffffff]/10 bg-[#1a212f]/70 px-8 text-center text-6xl font-semibold tracking-[0.28em] text-[#ffffff] outline-none ring-[#b3806e]/40 focus:ring-4"
+                  />
+                  <div className="mt-8 grid gap-4 md:grid-cols-2">
+                    <Button variant="secondary" className="min-h-20 text-xl" disabled={isSendingSms} onClick={() => void sendSmsCode()}>
+                      {t.smsSend}
+                    </Button>
+                    <Button className="min-h-20 text-xl" disabled={isVerifyingSms || smsCode.length !== 4} onClick={() => void submitSmsCode()}>
+                      {t.smsVerify}
                     </Button>
                   </div>
                 </Card>

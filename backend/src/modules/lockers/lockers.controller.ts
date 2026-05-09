@@ -25,10 +25,12 @@ import {
   LockerParamDto,
   LockerStatusQueryDto,
   MockPaymentDto,
+  RequestSmsAuthDto,
   ReportQueryDto,
   TariffParamDto,
   UpsertTariffDto,
   VerifyAccessDto,
+  VerifySmsAuthDto,
 } from './dto/locker-action.dto';
 import { LockersService } from './lockers.service';
 
@@ -107,6 +109,20 @@ export class LockersController {
   @RateLimit({ points: 10, windowMs: 60_000 })
   createBooking(@Body() dto: CreateBookingDto) {
     return this.lockersService.createBooking(dto);
+  }
+
+  @Post('sms/auth/request')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ points: 3, windowMs: 60_000 })
+  requestSmsAuth(@Body() dto: RequestSmsAuthDto) {
+    return this.lockersService.requestSmsAuth(dto.phone);
+  }
+
+  @Post('sms/auth/verify')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ points: 6, windowMs: 60_000 })
+  verifySmsAuth(@Body() dto: VerifySmsAuthDto) {
+    return this.lockersService.verifySmsAuth(dto.phone, dto.code);
   }
 
   @Post('payment/mock')
