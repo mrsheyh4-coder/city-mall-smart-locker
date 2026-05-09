@@ -2,7 +2,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { getPidOnPort, ok, rootDir, warn } = require('./shared');
 
-const nextDir = path.join(rootDir, 'frontend', '.next');
+const cacheTargets = [
+  path.join(rootDir, 'frontend', '.next'),
+  path.join(rootDir, 'frontend', '.next-build'),
+];
 const frontendPid = getPidOnPort(3000);
 
 if (frontendPid) {
@@ -30,11 +33,14 @@ if (process.platform === 'win32') {
   }
 }
 
-if (fs.existsSync(nextDir)) {
-  fs.rmSync(nextDir, { recursive: true, force: true });
-  ok('Removed frontend/.next cache');
-} else {
-  ok('frontend/.next cache is already clean');
+for (const target of cacheTargets) {
+  const label = path.relative(rootDir, target).replaceAll(path.sep, '/');
+  if (fs.existsSync(target)) {
+    fs.rmSync(target, { recursive: true, force: true });
+    ok(`Removed ${label} cache`);
+  } else {
+    ok(`${label} cache is already clean`);
+  }
 }
 
 ok('Frontend cache reset complete. Start frontend again with npm run dev:frontend');
