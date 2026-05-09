@@ -1,0 +1,21 @@
+{
+  "name": "smart-locker-system",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "doctor": "node scripts/doctor.js",
+    "verify": "node scripts/verify.js",
+    "qa:smoke": "node scripts/qa-smoke.js",
+    "qa:ui": "node scripts/local-ui-smoke.mjs",
+    "stop:dev": "node scripts/stop-dev.js",
+    "fix:frontend-cache": "node scripts/reset-frontend-cache.js",
+    "dev:clean": "node scripts/stop-dev.js && node scripts/reset-frontend-cache.js",
+    "dev:frontend:clean": "node scripts/reset-frontend-cache.js && npm run dev --prefix frontend",
+    "build:frontend": "npm run stop:dev && node scripts/reset-frontend-cache.js && npm run build --prefix frontend",
+    "dev:backend": "npm run start:dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
+  }
+}

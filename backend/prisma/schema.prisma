@@ -1,0 +1,243 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  OPERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum LockerStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+  EXPIRED
+  MAINTENANCE
+}
+
+enum LockerSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum BookingStatus {
+  ACTIVE
+  EXPIRED
+  COMPLETED
+  CANCELLED
+}
+
+enum SessionStatus {
+  ACTIVE
+  EXPIRED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum AccessMethod {
+  PIN
+  QR
+  ADMIN
+  HARDWARE
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+model User {
+  id          String    @id @default(cuid())
+  phone       String?   @unique
+  name        String?
+  role        UserRole  @default(CUSTOMER)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  bookings    Booking[]
+  payments    Payment[]
+  accessCodes AccessCode[]
+
+  @@map("users")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(ADMIN)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}
+
+model Locker {
+  id               String       @id @default(cuid())
+  number           Int          @unique
+  status           LockerStatus @default(AVAILABLE)
+  size             LockerSize   @default(MEDIUM)
+  isOpen           Boolean      @default(false)
+  isOnline         Boolean      @default(true)
+  pinCode          String?
+  qrCode           String?
+  customerName     String?
+  bookingStartAt   DateTime?
+  bookingExpiresAt DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  sessions         Session[]
+  bookings         Booking[]
+  accessCodes      AccessCode[]
+  accessLogs       AccessLog[]
+  logs             Log[]
+
+  @@index([status])
+  @@index([size])
+  @@index([bookingExpiresAt])
+  @@map("lockers")
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  lockerId        String
+  locker          Locker        @relation(fields: [lockerId], references: [id], onDelete: Cascade)
+  userId          String?
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  phone           String
+  customerName    String?
+  durationMinutes Int
+  status          BookingStatus @default(ACTIVE)
+  startTime       DateTime      @default(now())
+  expiresAt       DateTime
+  completedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  payments        Payment[]
+  accessCodes     AccessCode[]
+
+  @@index([lockerId])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("bookings")
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  bookingId String?
+  booking   Booking?      @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  userId    String?
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  amount    Int
+  currency  String        @default("UZS")
+  provider  String        @default("CITY_MALL_MOCK")
+  status    PaymentStatus @default(PENDING)
+  paidAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([bookingId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Tariff {
+  id             String     @id @default(cuid())
+  name           String
+  lockerSize     LockerSize
+  durationMinutes Int
+  price          Int
+  currency       String     @default("UZS")
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([lockerSize])
+  @@index([isActive])
+  @@map("tariffs")
+}
+
+model AccessCode {
+  id        String       @id @default(cuid())
+  bookingId String?
+  booking   Booking?     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  lockerId  String
+  locker    Locker       @relation(fields: [lockerId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  pinCode   String
+  qrCode    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+  logs      AccessLog[]
+
+  @@index([bookingId])
+  @@index([lockerId])
+  @@index([pinCode])
+  @@index([expiresAt])
+  @@map("access_codes")
+}
+
+model AccessLog {
+  id           String       @id @default(cuid())
+  lockerId     String
+  locker       Locker       @relation(fields: [lockerId], references: [id], onDelete: Cascade)
+  accessCodeId String?
+  accessCode   AccessCode?  @relation(fields: [accessCodeId], references: [id], onDelete: SetNull)
+  method       AccessMethod
+  success      Boolean
+  message      String
+  createdAt    DateTime     @default(now())
+
+  @@index([lockerId])
+  @@index([accessCodeId])
+  @@index([success])
+  @@map("access_logs")
+}
+
+model Log {
+  id        String   @id @default(cuid())
+  level     LogLevel @default(INFO)
+  source    String
+  message   String
+  lockerId  String?
+  locker    Locker?  @relation(fields: [lockerId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([source])
+  @@index([lockerId])
+  @@map("logs")
+}
+
+model Session {
+  id        String        @id @default(cuid())
+  lockerId  String
+  locker    Locker        @relation(fields: [lockerId], references: [id], onDelete: Cascade)
+  startTime DateTime      @default(now())
+  endTime   DateTime?
+  status    SessionStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  accessPin String?
+  accessQr  String?
+
+  @@index([lockerId])
+  @@index([status])
+  @@map("sessions")
+}

@@ -1,0 +1,65 @@
+interface EnvironmentVariables {
+  DATABASE_URL: string;
+  FRONTEND_URL?: string;
+  HARDWARE_MODE?: string;
+  NODE_ENV?: string;
+  PORT?: string;
+  PAYMENT_MODE?: string;
+  ADMIN_PIN?: string;
+  ADMIN_SESSION_SECRET?: string;
+  ADMIN_SESSION_TTL_SECONDS?: string;
+}
+
+export function validateEnvironment(config: Record<string, unknown>) {
+  const databaseUrl = config.DATABASE_URL;
+
+  if (typeof databaseUrl !== 'string' || databaseUrl.trim().length === 0) {
+    if (process.env.NODE_ENV === 'test') {
+      return {
+        DATABASE_URL:
+          'postgresql://postgres:postgres@localhost:5432/locker_system?schema=public',
+        NODE_ENV: 'test',
+      };
+    }
+
+    throw new Error('DATABASE_URL is required');
+  }
+
+  const validated: EnvironmentVariables = {
+    DATABASE_URL: databaseUrl,
+  };
+
+  if (typeof config.FRONTEND_URL === 'string') {
+    validated.FRONTEND_URL = config.FRONTEND_URL;
+  }
+
+  if (typeof config.HARDWARE_MODE === 'string') {
+    validated.HARDWARE_MODE = config.HARDWARE_MODE;
+  }
+
+  if (typeof config.NODE_ENV === 'string') {
+    validated.NODE_ENV = config.NODE_ENV;
+  }
+
+  if (typeof config.PORT === 'string') {
+    validated.PORT = config.PORT;
+  }
+
+  if (typeof config.PAYMENT_MODE === 'string') {
+    validated.PAYMENT_MODE = config.PAYMENT_MODE;
+  }
+
+  if (typeof config.ADMIN_PIN === 'string') {
+    validated.ADMIN_PIN = config.ADMIN_PIN;
+  }
+
+  if (typeof config.ADMIN_SESSION_SECRET === 'string') {
+    validated.ADMIN_SESSION_SECRET = config.ADMIN_SESSION_SECRET;
+  }
+
+  if (typeof config.ADMIN_SESSION_TTL_SECONDS === 'string') {
+    validated.ADMIN_SESSION_TTL_SECONDS = config.ADMIN_SESSION_TTL_SECONDS;
+  }
+
+  return validated;
+}
