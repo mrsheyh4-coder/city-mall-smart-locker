@@ -1248,10 +1248,6 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
   }
 
   private getDemoStatus(number: number) {
-    if (number % 19 === 0) {
-      return LockerStatus.MAINTENANCE;
-    }
-
     if (number % 11 === 0) {
       return LockerStatus.RESERVED;
     }
@@ -1434,16 +1430,6 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
           severity: 'ERROR',
           title: log.source,
           message: log.message,
-          createdAt: log.createdAt.toISOString(),
-        })),
-      ...accessLogs
-        .filter((log) => !log.success)
-        .slice(0, 5)
-        .map((log, index) => ({
-          id: `access-${index}-${log.createdAt.getTime()}`,
-          severity: 'WARN',
-          title: 'Access denied',
-          message: `Failed access attempt for locker ${log.locker?.number ?? '-'}`,
           createdAt: log.createdAt.toISOString(),
         })),
     ];

@@ -936,16 +936,13 @@ function createDemoLockers() {
     const number = index + 1;
     const occupied = number % 11 === 0;
     const reserved = !occupied && number % 8 === 0;
-    const maintenance = number % 19 === 0;
     const startedAt = occupied || reserved ? new Date(Date.now() - number * 60_000) : null;
     const expiresAt = startedAt ? new Date(startedAt.getTime() + 120 * 60_000) : null;
 
     return {
       id: `demo-locker-${number}`,
       number,
-      status: maintenance
-        ? 'MAINTENANCE'
-        : occupied
+      status: occupied
           ? 'OCCUPIED'
           : reserved
             ? 'RESERVED'
