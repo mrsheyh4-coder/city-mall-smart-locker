@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: process.cwd(),
   distDir:
     process.env.NEXT_DIST_DIR ??
     (process.env.NODE_ENV === 'production' ? '.next-build' : '.next'),

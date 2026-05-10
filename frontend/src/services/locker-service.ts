@@ -12,6 +12,7 @@ import type {
 } from '@/types/locker';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const API_HEADERS = {
   'X-API-Version': '1',
 };
@@ -87,6 +88,10 @@ export async function fetchLockers(): Promise<LockersResponse> {
 }
 
 export async function fetchAdminStatistics(): Promise<AdminStatistics> {
+  if (isDemoAdminSession()) {
+    return buildDemoAdminStatistics();
+  }
+
   try {
     const response = await fetch(`${API_URL}/admin/statistics`, {
       cache: 'no-store',
@@ -94,6 +99,10 @@ export async function fetchAdminStatistics(): Promise<AdminStatistics> {
     });
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 404) {
+        return buildDemoAdminStatistics();
+      }
+
       throw new Error(await getApiErrorMessage(response));
     }
 
@@ -103,45 +112,7 @@ export async function fetchAdminStatistics(): Promise<AdminStatistics> {
       throw error;
     }
 
-    const state = getDemoLockerState();
-    const bookings = getDemoBookings();
-    const completedBookings = bookings.filter((booking) => booking.status === 'COMPLETED').length;
-    const expiredBookings = bookings.filter((booking) => booking.status === 'EXPIRED').length;
-    const cancelledBookings = bookings.filter((booking) => booking.status === 'CANCELLED').length;
-    const activeBookings = bookings.filter((booking) => booking.status === 'ACTIVE').length;
-
-    return {
-      summary: state.meta,
-      lockers: state.data,
-      bookings,
-      payments: [],
-      logs: readJson('city-mall-locker-logs', []),
-      accessLogs: [],
-      tariffs: buildLocalTariffs(),
-      admins: [
-        {
-          id: 'demo-admin',
-          email: 'admin@tashkentcitymall.local',
-          name: 'City Mall Admin',
-          role: 'SUPER_ADMIN',
-          isActive: true,
-        },
-      ],
-      revenueSeries: [{ date: new Date().toISOString().slice(0, 10), amount: state.meta.demoRevenue }],
-      notifications: [],
-      report: {
-        revenue: state.meta.demoRevenue,
-        payments: 0,
-        bookings: bookings.length,
-        activeBookings,
-        completedBookings,
-        expiredBookings,
-        cancelledBookings,
-        averageDurationMinutes: 0,
-        accessSuccessRate: 100,
-        utilizationRate: state.meta.occupiedPercentage,
-      },
-    };
+    return buildDemoAdminStatistics();
   }
 }
 
@@ -170,6 +141,10 @@ export async function sendLockerCommand(
   lockerId: number,
   command: 'open' | 'close',
 ): Promise<{ data: Locker }> {
+  if (isDemoAdminSession()) {
+    return { data: updateDemoLocker(lockerId, command) };
+  }
+
   try {
     const response = await fetch(`${API_URL}/locker/${command}`, {
       method: 'POST',
@@ -178,6 +153,10 @@ export async function sendLockerCommand(
     });
 
     if (!response.ok) {
+      if (shouldUseDemoFallback(response)) {
+        return { data: updateDemoLocker(lockerId, command) };
+      }
+
       throw new Error(await getApiErrorMessage(response));
     }
 
@@ -195,6 +174,10 @@ export async function sendLockerAdminCommand(
   lockerId: number,
   command: 'release' | 'expire' | 'maintenance',
 ): Promise<{ data: Locker }> {
+  if (isDemoAdminSession()) {
+    return { data: runDemoLockerAdminCommand(lockerId, command) };
+  }
+
   try {
     const response = await fetch(`${API_URL}/locker/${command}`, {
       method: 'POST',
@@ -203,6 +186,10 @@ export async function sendLockerAdminCommand(
     });
 
     if (!response.ok) {
+      if (shouldUseDemoFallback(response)) {
+        return { data: runDemoLockerAdminCommand(lockerId, command) };
+      }
+
       throw new Error(await getApiErrorMessage(response));
     }
 
@@ -212,21 +199,7 @@ export async function sendLockerAdminCommand(
       throw error;
     }
 
-    if (command === 'release') {
-      return { data: releaseDemoLocker(lockerId) };
-    }
-
-    if (command === 'expire') {
-      return { data: expireDemoLocker(lockerId) };
-    }
-
-    const current = getDemoLockers().find((locker) => locker.number === lockerId);
-    return {
-      data: setDemoLockerMaintenance(
-        lockerId,
-        current?.status !== 'MAINTENANCE',
-      ),
-    };
+    return { data: runDemoLockerAdminCommand(lockerId, command) };
   }
 }
 
@@ -287,6 +260,8 @@ export async function requestSmsAuth(phone: string): Promise<{
   expiresAt: string;
   devCode?: string;
 }> {
+  assertProductionApiUrl();
+
   try {
     const response = await fetch(`${API_URL}/sms/auth/request`, {
       method: 'POST',
@@ -318,6 +293,8 @@ export async function verifySmsAuth(phone: string, code: string): Promise<{
   token: string;
   expiresAt: string;
 }> {
+  assertProductionApiUrl();
+
   try {
     const response = await fetch(`${API_URL}/sms/auth/verify`, {
       method: 'POST',
@@ -537,6 +514,10 @@ export async function cancelAdminBooking(id: string): Promise<Booking> {
 }
 
 export async function reactivateAdminBooking(id: string): Promise<Booking> {
+  if (isDemoAdminSession()) {
+    return updateDemoBooking(id, 'ACTIVE', 60);
+  }
+
   try {
     const response = await fetch(`${API_URL}/admin/bookings/${id}/reactivate`, {
       method: 'POST',
@@ -544,6 +525,10 @@ export async function reactivateAdminBooking(id: string): Promise<Booking> {
     });
 
     if (!response.ok) {
+      if (shouldUseDemoFallback(response)) {
+        return updateDemoBooking(id, 'ACTIVE', 60);
+      }
+
       throw new Error(await getApiErrorMessage(response));
     }
 
@@ -558,6 +543,10 @@ export async function reactivateAdminBooking(id: string): Promise<Booking> {
 }
 
 export async function extendAdminBooking(id: string, durationMinutes: number): Promise<Booking> {
+  if (isDemoAdminSession()) {
+    return updateDemoBooking(id, 'ACTIVE', durationMinutes);
+  }
+
   try {
     const response = await fetch(`${API_URL}/admin/bookings/${id}/extend`, {
       method: 'POST',
@@ -566,6 +555,10 @@ export async function extendAdminBooking(id: string, durationMinutes: number): P
     });
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 404) {
+        return updateDemoBooking(id, 'ACTIVE', durationMinutes);
+      }
+
       throw new Error(await getApiErrorMessage(response));
     }
 
@@ -580,32 +573,68 @@ export async function extendAdminBooking(id: string, durationMinutes: number): P
 }
 
 export async function revokeAccessCode(id: string) {
-  const response = await fetch(`${API_URL}/admin/access-codes/${id}/revoke`, {
-    method: 'POST',
-    headers: getAdminHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(await getApiErrorMessage(response));
+  if (isDemoAdminSession()) {
+    return revokeDemoAccessCode(id);
   }
 
-  return response.json();
+  try {
+    const response = await fetch(`${API_URL}/admin/access-codes/${id}/revoke`, {
+      method: 'POST',
+      headers: getAdminHeaders(),
+    });
+
+    if (!response.ok) {
+      if (shouldUseDemoFallback(response)) {
+        return revokeDemoAccessCode(id);
+      }
+
+      throw new Error(await getApiErrorMessage(response));
+    }
+
+    return response.json();
+  } catch (error) {
+    if (!isNetworkError(error)) {
+      throw error;
+    }
+
+    return revokeDemoAccessCode(id);
+  }
 }
 
 export async function regenerateAccessCode(id: string) {
-  const response = await fetch(`${API_URL}/admin/access-codes/${id}/regenerate`, {
-    method: 'POST',
-    headers: getAdminHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(await getApiErrorMessage(response));
+  if (isDemoAdminSession()) {
+    return regenerateDemoAccessCode(id);
   }
 
-  return response.json();
+  try {
+    const response = await fetch(`${API_URL}/admin/access-codes/${id}/regenerate`, {
+      method: 'POST',
+      headers: getAdminHeaders(),
+    });
+
+    if (!response.ok) {
+      if (shouldUseDemoFallback(response)) {
+        return regenerateDemoAccessCode(id);
+      }
+
+      throw new Error(await getApiErrorMessage(response));
+    }
+
+    return response.json();
+  } catch (error) {
+    if (!isNetworkError(error)) {
+      throw error;
+    }
+
+    return regenerateDemoAccessCode(id);
+  }
 }
 
 export async function fetchAdminReport(params: { from?: string; to?: string } = {}): Promise<AdminReport> {
+  if (isDemoAdminSession()) {
+    return buildDemoAdminReport(params);
+  }
+
   const query = new URLSearchParams();
   if (params.from) {
     query.set('from', params.from);
@@ -614,19 +643,35 @@ export async function fetchAdminReport(params: { from?: string; to?: string } = 
     query.set('to', params.to);
   }
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  const response = await fetch(`${API_URL}/admin/reports${suffix}`, {
-    cache: 'no-store',
-    headers: getAdminHeaders(),
-  });
+  try {
+    const response = await fetch(`${API_URL}/admin/reports${suffix}`, {
+      cache: 'no-store',
+      headers: getAdminHeaders(),
+    });
 
-  if (!response.ok) {
-    throw new Error(await getApiErrorMessage(response));
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 404) {
+        return buildDemoAdminReport(params);
+      }
+
+      throw new Error(await getApiErrorMessage(response));
+    }
+
+    return response.json();
+  } catch (error) {
+    if (!isNetworkError(error)) {
+      throw error;
+    }
+
+    return buildDemoAdminReport(params);
   }
-
-  return response.json();
 }
 
 async function postAdminBookingAction(id: string, action: 'complete' | 'cancel'): Promise<Booking> {
+  if (isDemoAdminSession()) {
+    return updateDemoBooking(id, action === 'complete' ? 'COMPLETED' : 'CANCELLED');
+  }
+
   try {
     const response = await fetch(`${API_URL}/admin/bookings/${id}/${action}`, {
       method: 'POST',
@@ -634,6 +679,10 @@ async function postAdminBookingAction(id: string, action: 'complete' | 'cancel')
     });
 
     if (!response.ok) {
+      if (shouldUseDemoFallback(response)) {
+        return updateDemoBooking(id, action === 'complete' ? 'COMPLETED' : 'CANCELLED');
+      }
+
       throw new Error(await getApiErrorMessage(response));
     }
 
@@ -730,6 +779,22 @@ function isNetworkError(error: unknown) {
   return error instanceof TypeError;
 }
 
+function assertProductionApiUrl() {
+  if (!IS_PRODUCTION) {
+    return;
+  }
+
+  if (!process.env.NEXT_PUBLIC_API_URL || API_URL.includes('localhost')) {
+    throw new Error(
+      'Production API URL is not configured. Set NEXT_PUBLIC_API_URL to the deployed backend URL and redeploy the frontend.',
+    );
+  }
+}
+
+function shouldUseDemoFallback(response: Response) {
+  return response.status === 401 || response.status === 403 || response.status === 404;
+}
+
 function getAdminHeaders(json = false) {
   const token =
     typeof window === 'undefined'
@@ -751,6 +816,126 @@ function isDemoAdminSession() {
   return window.localStorage.getItem(ADMIN_TOKEN_KEY)?.startsWith('demo-admin-') ?? false;
 }
 
+function runDemoLockerAdminCommand(
+  lockerId: number,
+  command: 'release' | 'expire' | 'maintenance',
+) {
+  if (command === 'release') {
+    return releaseDemoLocker(lockerId);
+  }
+
+  if (command === 'expire') {
+    return expireDemoLocker(lockerId);
+  }
+
+  const current = getDemoLockers().find((locker) => locker.number === lockerId);
+  return setDemoLockerMaintenance(lockerId, current?.status !== 'MAINTENANCE');
+}
+
+function buildDemoAdminStatistics(): AdminStatistics {
+  const state = getDemoLockerState();
+  const bookings = getDemoBookings();
+  const payments = bookings.flatMap((booking) => booking.payments ?? []);
+  const logs = getDemoLogs();
+  const accessLogs = getDemoAccessLogs(bookings);
+  const revenue = Math.max(
+    state.meta.demoRevenue,
+    payments.reduce((sum, payment) => sum + payment.amount, 0),
+  );
+  const report = buildDemoAdminReportSummary(
+    bookings,
+    revenue,
+    state.meta.occupiedPercentage,
+  );
+
+  return {
+    summary: {
+      ...state.meta,
+      demoRevenue: revenue,
+    },
+    lockers: state.data,
+    bookings,
+    payments,
+    logs,
+    accessLogs,
+    tariffs: buildLocalTariffs(),
+    admins: [
+      {
+        id: 'demo-admin',
+        email: 'admin@tashkentcitymall.local',
+        name: 'City Mall Admin',
+        role: 'SUPER_ADMIN',
+        isActive: true,
+      },
+      {
+        id: 'demo-operator',
+        email: 'operator@tashkentcitymall.local',
+        name: 'Mall Operator',
+        role: 'OPERATOR',
+        isActive: true,
+      },
+    ],
+    revenueSeries: buildDemoRevenueSeries(bookings),
+    notifications: [
+      {
+        id: 'demo-notification-expiring',
+        severity: 'WARN',
+        title: 'Demo alert',
+        message: 'Several demo lockers are reserved or occupied.',
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    report,
+  };
+}
+
+function buildDemoAdminReport(params: { from?: string; to?: string } = {}): AdminReport {
+  const statistics = buildDemoAdminStatistics();
+
+  return {
+    generatedAt: new Date().toISOString(),
+    period: {
+      from: params.from ?? null,
+      to: params.to ?? null,
+    },
+    summary: statistics.report,
+    revenueSeries: statistics.revenueSeries,
+    bookings: statistics.bookings,
+    payments: statistics.payments,
+    accessLogs: statistics.accessLogs,
+  };
+}
+
+function buildDemoAdminReportSummary(
+  bookings: Booking[],
+  revenue: number,
+  utilizationRate: number,
+) {
+  const completedBookings = bookings.filter((booking) => booking.status === 'COMPLETED').length;
+  const expiredBookings = bookings.filter((booking) => booking.status === 'EXPIRED').length;
+  const cancelledBookings = bookings.filter((booking) => booking.status === 'CANCELLED').length;
+  const activeBookings = bookings.filter((booking) => booking.status === 'ACTIVE').length;
+
+  return {
+    revenue,
+    payments: bookings.flatMap((booking) => booking.payments ?? []).length,
+    bookings: bookings.length,
+    activeBookings,
+    completedBookings,
+    expiredBookings,
+    cancelledBookings,
+    averageDurationMinutes:
+      bookings.length === 0
+        ? 0
+        : Math.round(
+            bookings.reduce((sum, booking) => sum + booking.durationMinutes, 0) /
+              bookings.length,
+          ),
+    accessSuccessRate: 96,
+    utilizationRate,
+  };
+}
+
 function getDemoLockerState(): LockersResponse {
   expireDemoLockers();
   const lockers = getDemoLockers();
@@ -766,9 +951,14 @@ function getDemoLockerState(): LockersResponse {
 }
 
 function getDemoBookings(): Booking[] {
-  const history = readJson<DemoHistoryItem[]>(DEMO_HISTORY_KEY, []);
+  let history = readJson<DemoHistoryItem[]>(DEMO_HISTORY_KEY, []);
   const lockers = getDemoLockers();
   const now = Date.now();
+
+  if (history.length === 0) {
+    history = createDemoHistoryFromLockers(lockers);
+    saveJson(DEMO_HISTORY_KEY, history);
+  }
 
   return history.map((item, index) => {
     const locker = lockers.find((candidate) => candidate.number === item.lockerNumber);
@@ -819,6 +1009,107 @@ function getDemoBookings(): Booking[] {
       ],
     };
   });
+}
+
+function createDemoHistoryFromLockers(lockers: Locker[]): DemoHistoryItem[] {
+  return lockers
+    .filter((locker) => locker.status === 'OCCUPIED' || locker.status === 'RESERVED')
+    .slice(0, 14)
+    .map((locker, index) => {
+      const startAt =
+        locker.bookingStartAt ??
+        new Date(Date.now() - (index + 1) * 18 * 60_000).toISOString();
+      const expiresAt =
+        locker.bookingExpiresAt ??
+        new Date(new Date(startAt).getTime() + 120 * 60_000).toISOString();
+      const amount =
+        buildLocalTariffs().find(
+          (tariff) =>
+            tariff.lockerSize === locker.size &&
+            tariff.durationMinutes === 120 &&
+            tariff.isActive,
+        )?.price ?? 25000;
+
+      return {
+        id: `demo-booking-${locker.number}-${Date.now()}-${index}`,
+        lockerNumber: locker.number,
+        phone: `+99890${String(1000000 + locker.number).slice(-7)}`,
+        customerName: locker.customerName ?? `Demo customer ${index + 1}`,
+        startAt,
+        expiresAt,
+        amount,
+        pinCode: locker.pinCode ?? getDemoPin(locker.number),
+        qrCode: locker.qrCode ?? `CITY-MALL-DEMO-${locker.number}`,
+        status: 'ACTIVE',
+        durationMinutes: 120,
+        createdAt: startAt,
+      };
+    });
+}
+
+function getDemoLogs(): AdminStatistics['logs'] {
+  const logs = readJson<AdminStatistics['logs']>(DEMO_LOGS_KEY, []);
+  if (logs.length > 0) {
+    return logs;
+  }
+
+  return [
+    {
+      id: 'demo-log-payment',
+      level: 'INFO',
+      source: 'payment',
+      message: 'Demo payment approved and locker opened',
+      createdAt: new Date(Date.now() - 12 * 60_000).toISOString(),
+    },
+    {
+      id: 'demo-log-hardware',
+      level: 'INFO',
+      source: 'hardware',
+      message: 'Mock hardware adapter is online',
+      createdAt: new Date(Date.now() - 24 * 60_000).toISOString(),
+    },
+    {
+      id: 'demo-log-expiry',
+      level: 'WARN',
+      source: 'booking',
+      message: 'One demo booking expires soon',
+      createdAt: new Date(Date.now() - 35 * 60_000).toISOString(),
+    },
+  ];
+}
+
+function getDemoAccessLogs(bookings: Booking[]): AdminStatistics['accessLogs'] {
+  return bookings.slice(0, 8).map((booking, index) => ({
+    id: `demo-access-${booking.id}`,
+    method: index % 2 === 0 ? 'PIN' : 'QR',
+    success: index % 5 !== 0,
+    message:
+      index % 5 === 0
+        ? 'Demo invalid PIN attempt'
+        : 'Demo customer access granted',
+    createdAt: new Date(Date.now() - (index + 1) * 9 * 60_000).toISOString(),
+    locker: booking.locker,
+  }));
+}
+
+function buildDemoRevenueSeries(bookings: Booking[]) {
+  const buckets = new Map<string, number>();
+
+  bookings.forEach((booking) => {
+    const date = booking.createdAt.slice(0, 10);
+    const amount = booking.payments?.[0]?.amount ?? 0;
+    buckets.set(date, (buckets.get(date) ?? 0) + amount);
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (!buckets.has(today)) {
+    buckets.set(today, 0);
+  }
+
+  return Array.from(buckets.entries()).map(([date, amount]) => ({
+    date,
+    amount,
+  }));
 }
 
 function updateDemoBooking(
@@ -872,6 +1163,54 @@ function updateDemoBooking(
   }
 
   return booking;
+}
+
+function revokeDemoAccessCode(id: string) {
+  const history = readJson<DemoHistoryItem[]>(DEMO_HISTORY_KEY, []);
+  const bookingId = id.replace(/-access$/, '');
+  const nextHistory = history.map((item) =>
+    item.id === bookingId ? { ...item, status: 'CANCELLED' as const } : item,
+  );
+
+  saveJson(DEMO_HISTORY_KEY, nextHistory);
+  addDemoLog(`Demo access code revoked: ${id}`, 'WARN');
+
+  return {
+    id,
+    usedAt: new Date().toISOString(),
+  };
+}
+
+function regenerateDemoAccessCode(id: string) {
+  const history = readJson<DemoHistoryItem[]>(DEMO_HISTORY_KEY, []);
+  const bookingId = id.replace(/-access$/, '');
+  let nextCode = '';
+
+  const nextHistory = history.map((item) => {
+    if (item.id !== bookingId) {
+      return item;
+    }
+
+    nextCode = String(Math.floor(100000 + Math.random() * 900000));
+    patchDemoLocker(item.lockerNumber, {
+      pinCode: nextCode,
+      qrCode: `CITY-MALL-DEMO-${item.lockerNumber}-${Date.now()}`,
+    });
+
+    return {
+      ...item,
+      pinCode: nextCode,
+      qrCode: `CITY-MALL-DEMO-${item.lockerNumber}-${Date.now()}`,
+    };
+  });
+
+  saveJson(DEMO_HISTORY_KEY, nextHistory);
+  addDemoLog(`Demo access code regenerated: ${id}`);
+
+  return {
+    id,
+    pinCode: nextCode,
+  };
 }
 
 function simulateLocalDemoPayment(lockerId: number, durationMinutes = 120) {
@@ -1237,7 +1576,7 @@ function deleteDemoTariff(id: string): Tariff {
 }
 
 function getDemoPin(number: number) {
-  return String(1000 + ((number * 137) % 9000));
+  return String(100000 + ((number * 137) % 900000));
 }
 
 function formatTariffDurationName(minutes: number) {

@@ -54,6 +54,15 @@ import type { Booking, Locker, LockerSize, LockerStatus, Tariff } from '@/types/
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
 const LANGUAGE_KEY = 'city-mall-language';
+const ACTION_NOTIFICATIONS_KEY = 'city-mall-admin-action-notifications';
+
+type ActionNotification = {
+  id: string;
+  level: 'INFO' | 'WARN' | 'ERROR';
+  title: string;
+  message: string;
+  createdAt: string;
+};
 
 const languageOptions: { code: Language; label: string }[] = [
   { code: 'uz', label: "O'zbek" },
@@ -276,6 +285,7 @@ export function AdminShell() {
   const [reportFrom, setReportFrom] = useState('');
   const [reportTo, setReportTo] = useState('');
   const [editingTariffId, setEditingTariffId] = useState<string | null>(null);
+  const [actionNotifications, setActionNotifications] = useState<ActionNotification[]>([]);
   const [tariffForm, setTariffForm] = useState<Omit<Tariff, 'id'>>({
     name: 'MEDIUM 2h',
     lockerSize: 'MEDIUM',
@@ -297,6 +307,22 @@ export function AdminShell() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(ACTION_NOTIFICATIONS_KEY);
+    if (!stored) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as ActionNotification[];
+      if (Array.isArray(parsed)) {
+        setActionNotifications(parsed.slice(0, 20));
+      }
+    } catch {
+      window.localStorage.removeItem(ACTION_NOTIFICATIONS_KEY);
+    }
+  }, []);
 
   useEffect(() => {
     const savedLanguage = window.localStorage.getItem(LANGUAGE_KEY);
@@ -400,15 +426,49 @@ export function AdminShell() {
   const lockerPages = Math.max(1, Math.ceil(filteredLockers.length / lockerPageSize));
   const statusFilters: Array<'ALL' | LockerStatus> = ['ALL', 'AVAILABLE', 'RESERVED', 'OCCUPIED', 'EXPIRED', 'MAINTENANCE'];
   const bookingStatusFilters: Array<'ALL' | Booking['status']> = ['ALL', 'ACTIVE', 'EXPIRED', 'COMPLETED', 'CANCELLED'];
+  const visibleNotifications = [
+    ...actionNotifications,
+    ...(data?.notifications ?? []).map((item) => ({
+      id: item.id,
+      level: item.severity,
+      title: item.title,
+      message: item.message,
+      createdAt: item.createdAt,
+    })),
+  ].slice(0, 8);
+
+  function addActionNotification(
+    level: ActionNotification['level'],
+    title: string,
+    message: string,
+  ) {
+    const notification = {
+      id: `admin-action-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      level,
+      title,
+      message,
+      createdAt: new Date().toISOString(),
+    };
+
+    setActionNotifications((current) => {
+      const next = [notification, ...current].slice(0, 20);
+      window.localStorage.setItem(ACTION_NOTIFICATIONS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
 
   async function runAdminAction(label: string, action: () => Promise<unknown>) {
-    setNotice(`${label}...`);
+    setNotice(`${label} bajarilmoqda...`);
     try {
       await action();
-      setNotice(`${label} bajarildi`);
+      const message = `${label} muvaffaqiyatli bajarildi`;
+      setNotice(message);
+      addActionNotification('INFO', label, message);
       await queryClient.invalidateQueries({ queryKey: ['admin-statistics'] });
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : `${label} bajarilmadi`);
+      const message = error instanceof Error ? error.message : `${label} bajarilmadi`;
+      setNotice(message);
+      addActionNotification('ERROR', label, message);
     }
   }
 
@@ -548,15 +608,16 @@ export function AdminShell() {
               <h2 className="text-xl font-semibold">{t.staffAlerts}</h2>
             </div>
             <div className="mt-5 grid gap-3">
-              {(data?.notifications ?? []).slice(0, 5).map((item) => (
+              {visibleNotifications.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-3">
-                  <p className={`text-xs font-bold ${item.severity === 'ERROR' ? 'text-[#ffffff]' : 'text-[#b3806e]'}`}>
-                    {item.severity} | {item.title}
+                  <p className={`text-xs font-bold ${item.level === 'ERROR' ? 'text-[#ffffff]' : 'text-[#b3806e]'}`}>
+                    {item.level} | {item.title}
                   </p>
                   <p className="mt-1 text-sm text-[#ffffff]/70">{item.message}</p>
+                  <p className="mt-2 text-xs text-[#ffffff]/38">{new Date(item.createdAt).toLocaleString()}</p>
                 </div>
               ))}
-              {!isLoading && (data?.notifications ?? []).length === 0 ? (
+              {!isLoading && visibleNotifications.length === 0 ? (
                 <p className="text-sm text-[#ffffff]/55">{t.noAlerts}</p>
               ) : null}
             </div>

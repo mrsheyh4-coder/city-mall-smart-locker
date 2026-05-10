@@ -5,6 +5,7 @@ const WEB = process.env.QA_WEB_URL ?? 'http://localhost:3000';
 const headers = { 'X-API-Version': '1' };
 
 const state = {
+  adminToken: '',
   touchedLockers: new Set(),
 };
 
@@ -20,6 +21,7 @@ async function main() {
   await assertFrontendRoute('/', 'home');
   await assertFrontendRoute('/terminal', 'terminal');
   await assertFrontendRoute('/admin', 'admin');
+  await loginAdmin();
 
   const before = await getLockers();
   assert(before.data.length >= 1, 'Lockers list is not empty');
@@ -47,12 +49,22 @@ async function main() {
 
 async function customerFlow(locker) {
   const phone = `+99890${String(locker.number).padStart(7, '0')}`;
+  const sms = await post('/sms/auth/request', { phone });
+  assert(sms.devCode, 'SMS demo code is returned for QA');
+  const verified = await post('/sms/auth/verify', {
+    phone,
+    code: sms.devCode,
+  });
+  assert(verified.token, 'SMS verification token is returned');
+
   const created = await post('/booking/create', {
     lockerId: locker.number,
     lockerSize: locker.size,
     durationMinutes: 60,
     phone,
     customerName: `QA Customer ${locker.number}`,
+    termsAccepted: true,
+    smsVerificationToken: verified.token,
   });
 
   assert(created.booking?.id, 'Booking is created');
@@ -88,12 +100,20 @@ async function customerFlow(locker) {
 }
 
 async function expireFlow(locker) {
+  const phone = `+99891${String(locker.number).padStart(7, '0')}`;
+  const sms = await post('/sms/auth/request', { phone });
+  const verified = await post('/sms/auth/verify', {
+    phone,
+    code: sms.devCode,
+  });
   const created = await post('/booking/create', {
     lockerId: locker.number,
     lockerSize: locker.size,
     durationMinutes: 60,
-    phone: `+99891${String(locker.number).padStart(7, '0')}`,
+    phone,
     customerName: `QA Expire ${locker.number}`,
+    termsAccepted: true,
+    smsVerificationToken: verified.token,
   });
 
   assert(created.data?.status === 'RESERVED', 'Expire flow booking starts as RESERVED');
@@ -133,6 +153,14 @@ async function adminFlow() {
   assert(Array.isArray(report.revenueSeries), 'Admin report returns revenue series');
 }
 
+async function loginAdmin() {
+  const response = await post('/auth/admin/login', {
+    pin: process.env.QA_ADMIN_PIN ?? '2026',
+  });
+  assert(response.token, 'Admin login returns token');
+  state.adminToken = response.token;
+}
+
 async function cleanup() {
   for (const lockerId of state.touchedLockers) {
     try {
@@ -164,7 +192,7 @@ function findAvailable(lockers, excludeNumber) {
 }
 
 async function get(path) {
-  const response = await requestJson(`${API}${path}`, headers);
+  const response = await requestJson(`${API}${path}`, getHeaders());
   assert(
     response.statusCode >= 200 && response.statusCode < 300,
     `GET ${path} returns 2xx`,
@@ -175,7 +203,7 @@ async function get(path) {
 async function post(path, body) {
   const response = await fetch(`${API}${path}`, {
     method: 'POST',
-    headers: { ...headers, 'Content-Type': 'application/json' },
+    headers: { ...getHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 
@@ -188,6 +216,13 @@ async function post(path, body) {
 
   assert(response.ok, `POST ${path} returns 2xx (${JSON.stringify(payload)})`);
   return payload;
+}
+
+function getHeaders() {
+  return {
+    ...headers,
+    ...(state.adminToken ? { Authorization: `Bearer ${state.adminToken}` } : {}),
+  };
 }
 
 function assert(condition, message) {

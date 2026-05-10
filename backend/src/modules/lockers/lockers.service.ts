@@ -494,7 +494,11 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    await this.createLog('INFO', 'sms-auth', `Phone verified: ${this.maskPhone(phone)}`);
+    await this.createLog(
+      'INFO',
+      'sms-auth',
+      `Phone verified: ${this.maskPhone(phone)}`,
+    );
 
     return {
       verified: true,
@@ -578,6 +582,18 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       `Mock payment approved for booking ${booking.id}; SMS ${sms?.state ?? 'SKIPPED'}`,
       booking.lockerId,
     );
+    await this.integrations
+      .syncGoogleSheetsPayment(result.payment.id)
+      .catch((error: unknown) =>
+        this.createLog(
+          'WARN',
+          'google-sheets',
+          `Google Sheets payment sync skipped: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          booking.lockerId,
+        ),
+      );
     this.gateway.emitBookingUpdated({ booking, payment: result.payment });
     this.gateway.emitLockersUpdated(await this.findAll());
 
@@ -607,7 +623,9 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     const phone = '+998900000000';
     const smsAuth = await this.requestSmsAuth(phone);
     if (!smsAuth.devCode) {
-      throw new BadRequestException('Demo payment requires local SMS mock mode');
+      throw new BadRequestException(
+        'Demo payment requires local SMS mock mode',
+      );
     }
     const verified = await this.verifySmsAuth(phone, smsAuth.devCode);
     const booking = await this.createBooking({
@@ -735,7 +753,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
         }),
         this.prisma.log.findMany({ orderBy: { createdAt: 'desc' }, take: 80 }),
         this.prisma.tariff.findMany({
-          orderBy: [{ lockerSize: 'asc' }, { durationMinutes: 'asc' }],
+          orderBy: [{ createdAt: 'desc' }],
         }),
         this.prisma.admin.findMany({ orderBy: { createdAt: 'asc' } }),
         this.prisma.accessLog.findMany({
@@ -754,12 +772,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       accessLogs,
       tariffs,
       admins,
-      notifications: this.buildAdminNotifications(
-        lockers,
-        bookings,
-        logs,
-        accessLogs,
-      ),
+      notifications: this.buildAdminNotifications(lockers, bookings, logs),
       revenueSeries: this.buildRevenueSeries(payments),
       report: this.buildAdminReport(lockers, bookings, payments, accessLogs),
     };
@@ -993,8 +1006,11 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException(`Booking ${id} was not found`);
     }
 
-    if (booking.status !== BookingStatus.ACTIVE) {
-      throw new BadRequestException(`Booking ${id} is not active`);
+    if (
+      booking.status !== BookingStatus.ACTIVE &&
+      booking.status !== BookingStatus.EXPIRED
+    ) {
+      throw new BadRequestException(`Booking ${id} cannot be extended`);
     }
 
     const expiresAt = new Date(
@@ -1006,6 +1022,8 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       const updatedBooking = await tx.booking.update({
         where: { id },
         data: {
+          status: BookingStatus.ACTIVE,
+          completedAt: null,
           durationMinutes: booking.durationMinutes + durationMinutes,
           expiresAt,
         },
@@ -1021,6 +1039,24 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
         where: { lockerId: booking.lockerId, status: SessionStatus.ACTIVE },
         data: { endTime: expiresAt },
       });
+
+      const activeSession = await tx.session.findFirst({
+        where: { lockerId: booking.lockerId, status: SessionStatus.ACTIVE },
+      });
+
+      if (!activeSession) {
+        await tx.session.create({
+          data: {
+            lockerId: booking.lockerId,
+            startTime: new Date(),
+            endTime: expiresAt,
+            status: SessionStatus.ACTIVE,
+            accessPin:
+              booking.accessCodes[0]?.pinCode ?? booking.locker.pinCode,
+            accessQr: booking.accessCodes[0]?.qrCode ?? booking.locker.qrCode,
+          },
+        });
+      }
 
       await tx.locker.update({
         where: { id: booking.lockerId },
@@ -1381,7 +1417,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
   }
 
   private generateSeedPin(lockerNumber: number) {
-    return `${lockerNumber}${Math.floor(1000 + lockerNumber * 137)}`;
+    return String(100000 + ((lockerNumber * 137) % 900000));
   }
 
   private buildSeedQr(lockerNumber: number) {
@@ -1389,7 +1425,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
   }
 
   private generatePin() {
-    return String(randomInt(1000, 10000));
+    return String(randomInt(100000, 1000000));
   }
 
   private async assertSmsVerified(phone: string, token?: string) {
@@ -1540,11 +1576,6 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       level: string;
       source: string;
       message: string;
-      createdAt: Date;
-    }>,
-    accessLogs: Array<{
-      success: boolean;
-      locker?: Locker | null;
       createdAt: Date;
     }>,
   ) {

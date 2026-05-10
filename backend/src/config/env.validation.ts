@@ -8,6 +8,12 @@ interface EnvironmentVariables {
   ADMIN_PIN?: string;
   ADMIN_SESSION_SECRET?: string;
   ADMIN_SESSION_TTL_SECONDS?: string;
+  GOOGLE_SHEETS_MODE?: string;
+  GOOGLE_SHEETS_SPREADSHEET_ID?: string;
+  GOOGLE_SERVICE_ACCOUNT_EMAIL?: string;
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?: string;
+  GOOGLE_SHEETS_PAYMENTS_SHEET?: string;
+  GOOGLE_SHEETS_TARIFFS_SHEET?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {
@@ -59,6 +65,34 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (typeof config.ADMIN_SESSION_TTL_SECONDS === 'string') {
     validated.ADMIN_SESSION_TTL_SECONDS = config.ADMIN_SESSION_TTL_SECONDS;
+  }
+
+  if (typeof config.GOOGLE_SHEETS_MODE === 'string') {
+    validated.GOOGLE_SHEETS_MODE = config.GOOGLE_SHEETS_MODE;
+  }
+
+  if (typeof config.GOOGLE_SHEETS_SPREADSHEET_ID === 'string') {
+    validated.GOOGLE_SHEETS_SPREADSHEET_ID =
+      config.GOOGLE_SHEETS_SPREADSHEET_ID;
+  }
+
+  if (typeof config.GOOGLE_SERVICE_ACCOUNT_EMAIL === 'string') {
+    validated.GOOGLE_SERVICE_ACCOUNT_EMAIL =
+      config.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  }
+
+  if (typeof config.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY === 'string') {
+    validated.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
+      config.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+  }
+
+  if (typeof config.GOOGLE_SHEETS_PAYMENTS_SHEET === 'string') {
+    validated.GOOGLE_SHEETS_PAYMENTS_SHEET =
+      config.GOOGLE_SHEETS_PAYMENTS_SHEET;
+  }
+
+  if (typeof config.GOOGLE_SHEETS_TARIFFS_SHEET === 'string') {
+    validated.GOOGLE_SHEETS_TARIFFS_SHEET = config.GOOGLE_SHEETS_TARIFFS_SHEET;
   }
 
   return validated;

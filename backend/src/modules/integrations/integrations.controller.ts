@@ -61,6 +61,23 @@ export class IntegrationsController {
     return this.integrations.importOneCTariffs(dto.tariffs);
   }
 
+  @Post('google-sheets/payments/sync')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ points: 10, windowMs: 60_000 })
+  googleSheetsPaymentSync(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.integrations.syncGoogleSheetsPayments(from, to);
+  }
+
+  @Post('google-sheets/tariffs/import')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ points: 10, windowMs: 60_000 })
+  googleSheetsTariffImport() {
+    return this.integrations.importGoogleSheetsTariffs();
+  }
+
   @Post('cctv/event')
   @HttpCode(HttpStatus.OK)
   @RateLimit({ points: 60, windowMs: 60_000 })

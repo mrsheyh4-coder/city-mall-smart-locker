@@ -60,7 +60,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
       lockerNumber: locker.number,
       customer,
       durationMinutes,
-      pinCode: locker.pinCode ?? `${locker.number}${1000 + locker.number * 137}`,
+      pinCode: locker.pinCode ?? String(100000 + ((locker.number * 137) % 900000)),
       qrCode: `TCM-${locker.number}-${Date.now()}`,
       amount,
       createdAt: new Date().toISOString(),

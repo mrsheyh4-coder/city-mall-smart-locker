@@ -50,8 +50,11 @@ describe('Lockers API (e2e)', () => {
     },
     tariff: {
       count: jest.fn().mockResolvedValue(3),
+      create: jest.fn(),
       createMany: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn(),
     },
     admin: {
       upsert: jest.fn(),

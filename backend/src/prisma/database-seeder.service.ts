@@ -88,7 +88,7 @@ export class DatabaseSeederService implements OnApplicationBootstrap {
   }
 
   private generatePin(lockerNumber: number) {
-    return `${lockerNumber}${Math.floor(1000 + lockerNumber * 137)}`;
+    return String(100000 + ((lockerNumber * 137) % 900000));
   }
 
   private async healLegacyLockerBookings() {

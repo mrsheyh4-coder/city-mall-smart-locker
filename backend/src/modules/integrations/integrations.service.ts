@@ -1,5 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { createHmac, timingSafeEqual } from 'crypto';
+import {
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { createHmac, createSign, timingSafeEqual } from 'crypto';
+import { LockerSize } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HardwareService } from '../hardware/hardware.service';
 import { OneCTariffDto } from './dto/integration.dto';
@@ -19,9 +24,30 @@ type EskizSendResponse = {
   status?: string;
 };
 
+type GoogleTokenResponse = {
+  access_token?: string;
+  expires_in?: number;
+  error?: string;
+  error_description?: string;
+};
+
+type GoogleSheetsValuesResponse = {
+  values?: string[][];
+};
+
+type GoogleApiErrorResponse = {
+  error?: {
+    message?: string;
+  };
+};
+
 @Injectable()
 export class IntegrationsService {
   private eskizToken?: {
+    value: string;
+    expiresAt: number;
+  };
+  private googleAccessToken?: {
     value: string;
     expiresAt: number;
   };
@@ -66,6 +92,15 @@ export class IntegrationsService {
           : 'MOCK',
         formats: ['JSON', 'XML'],
       },
+      googleSheets: {
+        mode: process.env.GOOGLE_SHEETS_MODE ?? 'DISABLED',
+        state: this.isGoogleSheetsReady() ? 'READY' : 'DISABLED',
+        spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+          ? 'CONFIGURED'
+          : 'MISSING',
+        paymentsSheet: process.env.GOOGLE_SHEETS_PAYMENTS_SHEET ?? 'Payments',
+        tariffsSheet: process.env.GOOGLE_SHEETS_TARIFFS_SHEET ?? 'Tariffs',
+      },
       cctv: {
         mode: process.env.CCTV_MODE ?? 'MANUAL',
         state: this.hasAll('CCTV_BASE_URL', 'CCTV_API_TOKEN')
@@ -103,13 +138,28 @@ export class IntegrationsService {
   }
 
   async sendSms(phone: string, message: string) {
+    const smsMode = process.env.SMS_MODE ?? 'MOCK';
+    const realDeliveryEnabled = this.isRealSmsDeliveryEnabled();
+    const hasEskizCredentials = this.hasAll('ESKIZ_EMAIL', 'ESKIZ_PASSWORD');
+
+    if (smsMode === 'ESKIZ' && realDeliveryEnabled && !hasEskizCredentials) {
+      throw new ServiceUnavailableException(
+        'Eskiz SMS is enabled but ESKIZ_EMAIL or ESKIZ_PASSWORD is missing.',
+      );
+    }
+
     const state: IntegrationState =
-      this.isRealSmsDeliveryEnabled() &&
-      this.hasAll('ESKIZ_EMAIL', 'ESKIZ_PASSWORD')
+      realDeliveryEnabled && hasEskizCredentials
         ? 'READY'
-        : (process.env.SMS_MODE ?? 'MOCK') === 'MOCK'
+        : smsMode === 'MOCK'
           ? 'MOCK'
           : 'DISABLED';
+
+    if (smsMode === 'ESKIZ' && state === 'DISABLED') {
+      throw new ServiceUnavailableException(
+        'Eskiz SMS delivery is disabled for this environment.',
+      );
+    }
 
     if (state === 'READY') {
       const result = await this.sendEskizSms(phone, message);
@@ -229,6 +279,132 @@ export class IntegrationsService {
     };
   }
 
+  async syncGoogleSheetsPayments(from?: string, to?: string) {
+    this.assertGoogleSheetsReady();
+
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        ...(from || to
+          ? {
+              createdAt: {
+                ...(from ? { gte: new Date(from) } : {}),
+                ...(to ? { lte: new Date(to) } : {}),
+              },
+            }
+          : {}),
+      },
+      include: {
+        booking: {
+          include: { locker: true, accessCodes: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const rows = payments.map((payment) => [
+      payment.createdAt.toISOString(),
+      payment.bookingId ?? '',
+      payment.booking?.locker?.number ?? '',
+      payment.booking?.phone ?? '',
+      payment.booking?.durationMinutes ?? '',
+      payment.amount,
+      payment.currency,
+      payment.provider,
+      payment.status,
+      payment.paidAt?.toISOString() ?? '',
+      payment.booking?.accessCodes?.[0]?.pinCode ?? '',
+      'CITY_MALL_SMART_LOCKER',
+    ]);
+
+    if (rows.length > 0) {
+      await this.appendGoogleSheetRows(
+        process.env.GOOGLE_SHEETS_PAYMENTS_SHEET ?? 'Payments',
+        rows,
+      );
+    }
+
+    await this.createIntegrationLog(
+      'google-sheets',
+      `Google Sheets payment sync completed: ${rows.length} rows`,
+    );
+
+    return {
+      synced: rows.length,
+      spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+      sheet: process.env.GOOGLE_SHEETS_PAYMENTS_SHEET ?? 'Payments',
+    };
+  }
+
+  async syncGoogleSheetsPayment(paymentId: string) {
+    if (!this.isGoogleSheetsEnabled()) {
+      return { skipped: true, reason: 'GOOGLE_SHEETS_MODE is not ENABLED' };
+    }
+
+    this.assertGoogleSheetsReady();
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        booking: {
+          include: { locker: true, accessCodes: true },
+        },
+      },
+    });
+
+    if (!payment) {
+      return { skipped: true, reason: `Payment ${paymentId} was not found` };
+    }
+
+    await this.appendGoogleSheetRows(
+      process.env.GOOGLE_SHEETS_PAYMENTS_SHEET ?? 'Payments',
+      [
+        [
+          payment.createdAt.toISOString(),
+          payment.bookingId ?? '',
+          payment.booking?.locker?.number ?? '',
+          payment.booking?.phone ?? '',
+          payment.booking?.durationMinutes ?? '',
+          payment.amount,
+          payment.currency,
+          payment.provider,
+          payment.status,
+          payment.paidAt?.toISOString() ?? '',
+          payment.booking?.accessCodes?.[0]?.pinCode ?? '',
+          'CITY_MALL_SMART_LOCKER',
+        ],
+      ],
+    );
+
+    await this.createIntegrationLog(
+      'google-sheets',
+      `Payment ${payment.id} appended to Google Sheets`,
+    );
+
+    return { synced: 1, paymentId: payment.id };
+  }
+
+  async importGoogleSheetsTariffs() {
+    this.assertGoogleSheetsReady();
+
+    const rows = await this.getGoogleSheetRows(
+      process.env.GOOGLE_SHEETS_TARIFFS_SHEET ?? 'Tariffs',
+    );
+    const tariffs = this.parseGoogleTariffRows(rows);
+    const result = await this.importOneCTariffs(tariffs);
+
+    await this.createIntegrationLog(
+      'google-sheets',
+      `Google Sheets tariff import completed: ${result.imported} imported`,
+    );
+
+    return {
+      ...result,
+      source: 'GOOGLE_SHEETS',
+      spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+      sheet: process.env.GOOGLE_SHEETS_TARIFFS_SHEET ?? 'Tariffs',
+    };
+  }
+
   async registerCctvEvent(lockerId: string, event: string, cameraId?: string) {
     await this.createIntegrationLog(
       'cctv',
@@ -253,6 +429,29 @@ export class IntegrationsService {
 
   private hasAll(...keys: string[]) {
     return keys.every((key) => Boolean(process.env[key]));
+  }
+
+  private isGoogleSheetsEnabled() {
+    return (process.env.GOOGLE_SHEETS_MODE ?? 'DISABLED') === 'ENABLED';
+  }
+
+  private isGoogleSheetsReady() {
+    return (
+      this.isGoogleSheetsEnabled() &&
+      this.hasAll(
+        'GOOGLE_SHEETS_SPREADSHEET_ID',
+        'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+        'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
+      )
+    );
+  }
+
+  private assertGoogleSheetsReady() {
+    if (!this.isGoogleSheetsReady()) {
+      throw new UnauthorizedException(
+        'Google Sheets integration is not configured. Set GOOGLE_SHEETS_MODE=ENABLED, spreadsheet id, service account email, and private key.',
+      );
+    }
   }
 
   private isRealSmsDeliveryEnabled() {
@@ -324,6 +523,183 @@ export class IntegrationsService {
     };
 
     return token;
+  }
+
+  private async appendGoogleSheetRows(sheetName: string, rows: unknown[][]) {
+    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    const token = await this.getGoogleAccessToken();
+    const range = encodeURIComponent(`${sheetName}!A:L`);
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ values: rows }),
+      },
+    );
+
+    await this.assertGoogleResponse(response, 'Google Sheets append failed');
+  }
+
+  private async getGoogleSheetRows(sheetName: string) {
+    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    const token = await this.getGoogleAccessToken();
+    const range = encodeURIComponent(`${sheetName}!A:Z`);
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+
+    const body = (await this.assertGoogleResponse(
+      response,
+      'Google Sheets read failed',
+    )) as GoogleSheetsValuesResponse;
+
+    return body.values ?? [];
+  }
+
+  private parseGoogleTariffRows(rows: string[][]): OneCTariffDto[] {
+    if (rows.length < 2) {
+      return [];
+    }
+
+    const headers = rows[0].map((header) =>
+      header.trim().toLowerCase().replace(/\s+/g, ''),
+    );
+    const indexOf = (...names: string[]) =>
+      names
+        .map((name) => headers.indexOf(name))
+        .find((index) => index !== -1) ?? -1;
+
+    const nameIndex = indexOf('name', 'tariff', 'tariffname');
+    const sizeIndex = indexOf('size', 'lockersize');
+    const durationIndex = indexOf('durationminutes', 'duration', 'minutes');
+    const priceIndex = indexOf('price', 'amount');
+    const currencyIndex = indexOf('currency');
+    const activeIndex = indexOf('active', 'isactive');
+
+    const tariffs = rows.slice(1).map((row, index): OneCTariffDto | null => {
+      const lockerSize = String(row[sizeIndex] ?? '').toUpperCase();
+      if (!['SMALL', 'MEDIUM', 'LARGE'].includes(lockerSize)) {
+        return null;
+      }
+
+      const durationMinutes = Number(row[durationIndex]);
+      const price = Number(row[priceIndex]);
+      if (!Number.isInteger(durationMinutes) || !Number.isInteger(price)) {
+        return null;
+      }
+
+      const isActiveValue = String(row[activeIndex] ?? 'TRUE').toUpperCase();
+
+      return {
+        name:
+          row[nameIndex] ??
+          `Google Sheets tariff ${lockerSize} ${durationMinutes}m ${index + 1}`,
+        lockerSize: lockerSize as LockerSize,
+        durationMinutes,
+        price,
+        currency: row[currencyIndex] || 'UZS',
+        isActive: !['FALSE', '0', 'NO', 'N'].includes(isActiveValue),
+      };
+    });
+
+    return tariffs.filter((tariff): tariff is OneCTariffDto => Boolean(tariff));
+  }
+
+  private async getGoogleAccessToken() {
+    if (
+      this.googleAccessToken &&
+      this.googleAccessToken.expiresAt > Date.now()
+    ) {
+      return this.googleAccessToken.value;
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const jwtHeader = this.base64UrlEncode(
+      JSON.stringify({ alg: 'RS256', typ: 'JWT' }),
+    );
+    const jwtClaim = this.base64UrlEncode(
+      JSON.stringify({
+        iss: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        aud: 'https://oauth2.googleapis.com/token',
+        exp: nowSeconds + 3600,
+        iat: nowSeconds,
+      }),
+    );
+    const unsignedJwt = `${jwtHeader}.${jwtClaim}`;
+    const signer = createSign('RSA-SHA256');
+    signer.update(unsignedJwt);
+    signer.end();
+
+    const signature = signer.sign(this.getGooglePrivateKey(), 'base64url');
+    const assertion = `${unsignedJwt}.${signature}`;
+
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      }),
+    });
+
+    const body = (await response
+      .json()
+      .catch(() => ({}))) as GoogleTokenResponse;
+
+    if (!response.ok || !body.access_token) {
+      throw new UnauthorizedException(
+        body.error_description ??
+          body.error ??
+          `Google token request failed with ${response.status}`,
+      );
+    }
+
+    this.googleAccessToken = {
+      value: body.access_token,
+      expiresAt:
+        Date.now() + Math.max((body.expires_in ?? 3600) - 60, 60) * 1000,
+    };
+
+    return body.access_token;
+  }
+
+  private getGooglePrivateKey() {
+    const raw = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? '';
+    return raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw;
+  }
+
+  private base64UrlEncode(value: string) {
+    return Buffer.from(value).toString('base64url');
+  }
+
+  private async assertGoogleResponse(
+    response: Response,
+    fallback: string,
+  ): Promise<unknown> {
+    const body = (await response
+      .json()
+      .catch(() => ({}))) as GoogleApiErrorResponse;
+
+    if (!response.ok) {
+      const message =
+        body.error?.message ?? `${fallback} with ${response.status}`;
+
+      throw new UnauthorizedException(message);
+    }
+
+    return body;
   }
 
   private normalizePhone(phone: string) {

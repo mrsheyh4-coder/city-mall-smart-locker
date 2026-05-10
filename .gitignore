@@ -25,6 +25,7 @@ qa-screenshots/
 tz-pages-local/
 tz-extracted-local.txt
 tz-path.txt
+backups/
 
 # OS/editor
 .DS_Store

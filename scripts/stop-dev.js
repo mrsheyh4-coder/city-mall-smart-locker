@@ -27,12 +27,28 @@ const conditions = commandTokens
 
 const script = `
 $current = ${process.pid}
-$items = Get-CimInstance Win32_Process -Filter "name = 'node.exe'" |
+$processItems = Get-CimInstance Win32_Process -Filter "name = 'node.exe'" |
   Where-Object {
     $_.ProcessId -ne $current -and
     $_.CommandLine -like '*${projectToken}*' -and
     (${conditions})
   }
+
+$portPids = @(3000, 4000) |
+  ForEach-Object {
+    Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue |
+      Select-Object -ExpandProperty OwningProcess -Unique
+  } |
+  Where-Object { $_ -and $_ -ne $current }
+
+$portItems = Get-CimInstance Win32_Process -Filter "name = 'node.exe'" |
+  Where-Object {
+    $portPids -contains $_.ProcessId -and
+    $_.CommandLine -like '*${projectToken}*'
+  }
+
+$items = @($processItems) + @($portItems) |
+  Sort-Object ProcessId -Unique
 
 foreach ($item in $items) {
   Stop-Process -Id $item.ProcessId -Force -ErrorAction SilentlyContinue

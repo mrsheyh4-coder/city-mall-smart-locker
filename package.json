@@ -8,6 +8,7 @@
     "qa:smoke": "node scripts/qa-smoke.js",
     "qa:ui": "node scripts/local-ui-smoke.mjs",
     "stop:dev": "node scripts/stop-dev.js",
+    "backup:db": "node scripts/backup-postgres.js",
     "fix:frontend-cache": "node scripts/reset-frontend-cache.js",
     "dev:clean": "node scripts/stop-dev.js && node scripts/reset-frontend-cache.js",
     "dev:frontend:clean": "node scripts/reset-frontend-cache.js && npm run dev --prefix frontend",
