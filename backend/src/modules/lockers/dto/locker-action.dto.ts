@@ -81,7 +81,7 @@ export class VerifySmsAuthDto {
   phone: string;
 
   @IsString()
-  @Length(4, 4)
+  @Length(4, 64)
   code: string;
 }
 

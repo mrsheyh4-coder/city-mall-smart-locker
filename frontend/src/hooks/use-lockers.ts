@@ -17,6 +17,20 @@ import {
 type PaymentStage = 'idle' | 'processing' | 'authorizing' | 'success';
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
 
+function translateAccessReasonUz(reason: string | undefined) {
+  const dictionary: Record<string, string> = {
+    'Access granted': 'Kirishga ruxsat berildi',
+    'Access code expired or already used': 'Kirish kodi muddati tugagan yoki ishlatilgan',
+    'Invalid access credential': "Kirish ma'lumoti noto'g'ri",
+    'Invalid PIN or QR': "PIN yoki QR kodi noto'g'ri",
+    'Booking expired': 'Buyurtma muddati tugagan',
+    'Locker not found': 'Yashik topilmadi',
+    'Access temporarily locked, contact an operator': 'Kirish vaqtincha bloklangan, operatorga murojaat qiling',
+  };
+
+  return reason ? dictionary[reason] ?? reason : 'Kirish amalga oshmadi';
+}
+
 export function useLockers() {
   const emptyState = getEmptyLockerState();
   const [lockers, setLockers] = useState<Locker[]>(() => emptyState.data);
@@ -279,7 +293,7 @@ export function useLockers() {
     void (async () => {
       const result = await verifyAccess(locker.number, credential);
       setAccessMessage(
-        `${locker.number}: ${result.valid ? 'Access granted' : result.reason}`,
+        `${locker.number}: ${result.valid ? translateAccessReasonUz('Access granted') : translateAccessReasonUz(result.reason)}`,
       );
       void refreshLockers({ quiet: true });
     })();

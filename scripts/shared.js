@@ -154,7 +154,7 @@ function getPidOnPort(port) {
 
   try {
     const output = powershell(
-      `Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique`,
+      `Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique`,
     );
     const pid = output
       .split(/\r?\n/)

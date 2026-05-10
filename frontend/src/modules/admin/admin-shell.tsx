@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -64,6 +64,8 @@ type ActionNotification = {
   createdAt: string;
 };
 
+type AdminSection = 'lockers' | 'overview' | 'bookings' | 'tariffs' | 'access' | 'logs';
+
 const languageOptions: { code: Language; label: string }[] = [
   { code: 'uz', label: "O'zbek" },
   { code: 'ru', label: 'Русский' },
@@ -116,6 +118,19 @@ const adminText = {
     maintenance: 'Texnik xizmat',
     active: 'aktiv',
     inactive: 'nofaol',
+    activeAccess: 'FAOL',
+    revokedOrUsed: 'BEKOR QILINGAN / ISHLATILGAN',
+    accessOk: 'RUXSAT BERILDI',
+    accessDenied: 'RAD ETILDI',
+    lockerFallback: 'Yashik',
+    accessGrantedMessage: 'Kirishga ruxsat berildi',
+    accessExpiredMessage: 'Kirish kodi muddati tugagan yoki ishlatilgan',
+    invalidAccessMessage: "Kirish ma'lumoti noto'g'ri",
+    bookingExpiredMessage: 'Buyurtma muddati tugagan',
+    lockerNotFoundMessage: 'Yashik topilmadi',
+    accessTemporarilyLockedMessage: 'Kirish vaqtincha bloklangan, operatorga murojaat qiling',
+    demoInvalidPinMessage: "Demo PIN urinishi noto'g'ri",
+    demoAccessGrantedMessage: 'Demo mijoz kirishiga ruxsat berildi',
     expires: 'Tugash vaqti',
     extend: '+60 daqiqa',
     complete: 'Tugatish',
@@ -182,6 +197,19 @@ const adminText = {
     maintenance: 'Обслуживание',
     active: 'активен',
     inactive: 'неактивен',
+    activeAccess: 'АКТИВЕН',
+    revokedOrUsed: 'ОТОЗВАН / ИСПОЛЬЗОВАН',
+    accessOk: 'ДОСТУП РАЗРЕШЕН',
+    accessDenied: 'ДОСТУП ЗАПРЕЩЕН',
+    lockerFallback: 'Ячейка',
+    accessGrantedMessage: 'Доступ разрешен',
+    accessExpiredMessage: 'Код доступа истек или уже использован',
+    invalidAccessMessage: 'Неверные данные доступа',
+    bookingExpiredMessage: 'Срок бронирования истек',
+    lockerNotFoundMessage: 'Ячейка не найдена',
+    accessTemporarilyLockedMessage: 'Доступ временно заблокирован, обратитесь к оператору',
+    demoInvalidPinMessage: 'Неверная попытка demo PIN',
+    demoAccessGrantedMessage: 'Доступ demo-клиента разрешен',
     expires: 'Истекает',
     extend: '+60 мин',
     complete: 'Завершить',
@@ -248,6 +276,19 @@ const adminText = {
     maintenance: 'Maintenance',
     active: 'active',
     inactive: 'inactive',
+    activeAccess: 'ACTIVE',
+    revokedOrUsed: 'REVOKED / USED',
+    accessOk: 'OK',
+    accessDenied: 'DENIED',
+    lockerFallback: 'Locker',
+    accessGrantedMessage: 'Access granted',
+    accessExpiredMessage: 'Access code expired or already used',
+    invalidAccessMessage: 'Invalid access credential',
+    bookingExpiredMessage: 'Booking expired',
+    lockerNotFoundMessage: 'Locker not found',
+    accessTemporarilyLockedMessage: 'Access temporarily locked, contact an operator',
+    demoInvalidPinMessage: 'Demo invalid PIN attempt',
+    demoAccessGrantedMessage: 'Demo customer access granted',
     expires: 'Expires',
     extend: '+60 min',
     complete: 'Complete',
@@ -271,6 +312,23 @@ const adminText = {
   },
 } as const;
 
+type AdminCopy = (typeof adminText)[Language];
+
+function translateAccessMessage(message: string, labels: AdminCopy) {
+  const dictionary: Record<string, string> = {
+    'Access granted': labels.accessGrantedMessage,
+    'Access code expired or already used': labels.accessExpiredMessage,
+    'Invalid access credential': labels.invalidAccessMessage,
+    'Booking expired': labels.bookingExpiredMessage,
+    'Locker not found': labels.lockerNotFoundMessage,
+    'Access temporarily locked, contact an operator': labels.accessTemporarilyLockedMessage,
+    'Demo invalid PIN attempt': labels.demoInvalidPinMessage,
+    'Demo customer access granted': labels.demoAccessGrantedMessage,
+  };
+
+  return dictionary[message] ?? message;
+}
+
 export function AdminShell() {
   const [language, setLanguage] = useState<Language>('uz');
   const [bookingSearch, setBookingSearch] = useState('');
@@ -280,6 +338,7 @@ export function AdminShell() {
   const [bookingPage, setBookingPage] = useState(1);
   const [lockerPage, setLockerPage] = useState(1);
   const [selectedLocker, setSelectedLocker] = useState<Locker | null>(null);
+  const [activeSection, setActiveSection] = useState<AdminSection>('lockers');
   const [logFilter, setLogFilter] = useState<'ALL' | 'INFO' | 'WARN' | 'ERROR'>('ALL');
   const [notice, setNotice] = useState('');
   const [reportFrom, setReportFrom] = useState('');
@@ -436,6 +495,49 @@ export function AdminShell() {
       createdAt: item.createdAt,
     })),
   ].slice(0, 8);
+  const adminSections: Array<{
+    id: AdminSection;
+    label: string;
+    description: string;
+    icon: ReactNode;
+  }> = [
+    {
+      id: 'lockers',
+      label: t.lockerMonitoring,
+      description: `${filteredLockers.length} / ${summary?.total ?? 0}`,
+      icon: <DoorOpen size={18} />,
+    },
+    {
+      id: 'overview',
+      label: 'Dashboard',
+      description: t.financialReports,
+      icon: <BarChart3 size={18} />,
+    },
+    {
+      id: 'bookings',
+      label: t.bookingManagement,
+      description: `${filteredBookings.length} ${t.bookings.toLowerCase()}`,
+      icon: <ReceiptText size={18} />,
+    },
+    {
+      id: 'tariffs',
+      label: t.tariffs,
+      description: `${data?.tariffs.length ?? 0} ${t.activeTariff.toLowerCase()}`,
+      icon: <Gauge size={18} />,
+    },
+    {
+      id: 'access',
+      label: t.accessManagement,
+      description: 'PIN / QR',
+      icon: <ShieldCheck size={18} />,
+    },
+    {
+      id: 'logs',
+      label: t.logsSystem,
+      description: `${filteredLogs.length} log`,
+      icon: <Bell size={18} />,
+    },
+  ];
 
   function addActionNotification(
     level: ActionNotification['level'],
@@ -576,7 +678,34 @@ export function AdminShell() {
       </header>
 
       <section className="mx-auto max-w-7xl px-5 py-6 lg:px-10">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          {adminSections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+              className={`rounded-[1.35rem] border p-4 text-left transition hover:-translate-y-0.5 ${
+                activeSection === section.id
+                  ? 'border-[#b3806e]/70 bg-[#b3806e]/18 text-[#ffffff] shadow-[0_16px_55px_rgba(179,128,110,0.16)]'
+                  : 'border-[#ffffff]/10 bg-[#ffffff]/[0.055] text-[#ffffff]/72 hover:border-[#b3806e]/45'
+              }`}
+            >
+              <span className="flex items-center gap-2 text-[#b3806e]">{section.icon}</span>
+              <span className="mt-3 block text-sm font-bold">{section.label}</span>
+              <span className="mt-1 block text-xs text-[#ffffff]/48">{section.description}</span>
+            </button>
+          ))}
+        </div>
+
+        {notice ? (
+          <div className="mt-4 rounded-2xl border border-[#b3806e]/35 bg-[#b3806e]/12 px-4 py-3 text-sm font-semibold text-[#ffffff]">
+            {notice}
+          </div>
+        ) : null}
+
+        {activeSection === 'overview' ? (
+          <>
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <Metric icon={<DoorOpen />} label={t.totalLockers} value={summary?.total ?? 0} />
           <Metric icon={<Gauge />} label={t.activeLockers} value={summary?.active ?? 0} />
           <Metric
@@ -594,12 +723,6 @@ export function AdminShell() {
           />
           <Metric icon={<ShieldCheck />} label={t.expired} value={summary?.expired ?? 0} />
         </div>
-
-        {notice ? (
-          <div className="mt-4 rounded-2xl border border-[#b3806e]/35 bg-[#b3806e]/12 px-4 py-3 text-sm font-semibold text-[#ffffff]">
-            {notice}
-          </div>
-        ) : null}
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
           <Card className="luxury-card-strong">
@@ -660,8 +783,12 @@ export function AdminShell() {
             </div>
           </Card>
         </div>
+          </>
+        ) : null}
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+        {activeSection === 'overview' || activeSection === 'tariffs' ? (
+        <div className="mt-6 grid gap-6 xl:grid-cols-1">
+          {activeSection === 'overview' ? (
           <Card className="luxury-card-strong">
             <div className="flex items-center justify-between">
               <div>
@@ -691,7 +818,9 @@ export function AdminShell() {
               </ResponsiveContainer>
             </div>
           </Card>
+          ) : null}
 
+          {activeSection === 'tariffs' ? (
           <Card className="luxury-card-strong">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">{t.tariffs}</h2>
@@ -766,9 +895,13 @@ export function AdminShell() {
               ))}
             </div>
           </Card>
+          ) : null}
         </div>
+        ) : null}
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        {activeSection === 'bookings' || activeSection === 'lockers' || activeSection === 'logs' ? (
+        <div className="mt-6 grid gap-6 xl:grid-cols-1">
+          {activeSection === 'bookings' ? (
           <Card className="luxury-card-strong">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">{t.bookingManagement}</h2>
@@ -824,7 +957,9 @@ export function AdminShell() {
             </div>
             <Pager labels={t} page={bookingPage} pages={bookingPages} onPrev={() => setBookingPage((page) => Math.max(1, page - 1))} onNext={() => setBookingPage((page) => Math.min(bookingPages, page + 1))} />
           </Card>
+          ) : null}
 
+          {activeSection === 'lockers' ? (
           <Card className="luxury-card-strong">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">{t.lockerMonitoring}</h2>
@@ -862,7 +997,9 @@ export function AdminShell() {
             </div>
             <Pager labels={t} page={lockerPage} pages={lockerPages} onPrev={() => setLockerPage((page) => Math.max(1, page - 1))} onNext={() => setLockerPage((page) => Math.min(lockerPages, page + 1))} />
           </Card>
+          ) : null}
 
+          {activeSection === 'logs' ? (
           <Card className="luxury-card-strong">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">{t.logsSystem}</h2>
@@ -895,8 +1032,12 @@ export function AdminShell() {
               ))}
             </div>
           </Card>
+          ) : null}
         </div>
+        ) : null}
 
+        {activeSection === 'access' ? (
+        <>
         <Card className="luxury-card-strong mt-6">
           <div className="flex items-center gap-3">
             <KeyBadge />
@@ -906,11 +1047,11 @@ export function AdminShell() {
             {accessCodes.map((accessCode) => (
               <div key={accessCode.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-4">
                 <div className="flex items-center justify-between">
-                  <p className="font-semibold">{accessCode.locker ? formatLockerNumber(accessCode.locker.number) : 'Yashik'}</p>
-                  <p className="text-xs font-bold text-[#b3806e]">{accessCode.usedAt ? 'REVOKED/USED' : 'ACTIVE'}</p>
+                  <p className="font-semibold">{accessCode.locker ? formatLockerNumber(accessCode.locker.number) : t.lockerFallback}</p>
+                  <p className="text-xs font-bold text-[#b3806e]">{accessCode.usedAt ? t.revokedOrUsed : t.activeAccess}</p>
                 </div>
                 <p className="mt-2 text-sm text-[#ffffff]/70">PIN: {accessCode.pinCode}</p>
-                <p className="mt-1 text-xs text-[#ffffff]/45">Expires {new Date(accessCode.expiresAt).toLocaleString()}</p>
+                <p className="mt-1 text-xs text-[#ffffff]/45">{t.expires} {new Date(accessCode.expiresAt).toLocaleString()}</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => runAdminAction('PIN/QR regenerate', () => regenerateAccessCode(accessCode.id))} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#b3806e]/45">
                     {t.regenerate}
@@ -924,10 +1065,10 @@ export function AdminShell() {
             {latestAccessLogs.map((log) => (
               <div key={log.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-4">
                 <div className="flex items-center justify-between">
-                  <p className="font-semibold">{log.locker ? formatLockerNumber(log.locker.number) : 'Yashik'}</p>
-                  <p className="text-xs font-bold text-[#b3806e]">{log.method} | {log.success ? 'OK' : 'DENIED'}</p>
+                  <p className="font-semibold">{log.locker ? formatLockerNumber(log.locker.number) : t.lockerFallback}</p>
+                  <p className="text-xs font-bold text-[#b3806e]">{log.method} | {log.success ? t.accessOk : t.accessDenied}</p>
                 </div>
-                <p className="mt-2 text-sm text-[#ffffff]/70">{log.message}</p>
+                <p className="mt-2 text-sm text-[#ffffff]/70">{translateAccessMessage(log.message, t)}</p>
                 <p className="mt-3 text-xs text-[#ffffff]/45">{new Date(log.createdAt).toLocaleString()}</p>
               </div>
             ))}
@@ -952,6 +1093,8 @@ export function AdminShell() {
             ))}
           </div>
         </Card>
+        </>
+        ) : null}
       </section>
 
       {selectedLocker ? (

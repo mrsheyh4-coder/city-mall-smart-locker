@@ -26,6 +26,7 @@ import type { BookingResponse, DemoPaymentResponse, Locker, LockerSize, Tariff }
 type Step = 'language' | 'size' | 'duration' | 'phone' | 'sms' | 'terms' | 'locker' | 'payment' | 'success' | 'access';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
+const IDLE_RESET_SECONDS = 60;
 
 const text = {
   uz: {
@@ -67,6 +68,12 @@ const text = {
     credential: 'PIN yoki QR kodi',
     openAccess: 'Tekshirish va ochish',
     accessGranted: 'Yashik ochildi',
+    accessExpired: 'Kirish kodi muddati tugagan yoki ishlatilgan',
+    invalidAccess: "PIN yoki QR kodi noto'g'ri",
+    bookingExpired: 'Buyurtma muddati tugagan',
+    lockerNotFound: 'Yashik topilmadi',
+    accessLocked: 'Kirish vaqtincha bloklangan, operatorga murojaat qiling',
+    accessFailed: 'Kirish amalga oshmadi',
     sizeSmall: 'Kichik',
     sizeMedium: "O'rta",
     sizeLarge: 'Katta',
@@ -117,6 +124,12 @@ const text = {
     credential: 'PIN или QR код',
     openAccess: 'Проверить и открыть',
     accessGranted: 'Ячейка открыта',
+    accessExpired: 'Код доступа истек или уже использован',
+    invalidAccess: 'Неверный PIN или QR код',
+    bookingExpired: 'Срок бронирования истек',
+    lockerNotFound: 'Ячейка не найдена',
+    accessLocked: 'Доступ временно заблокирован, обратитесь к оператору',
+    accessFailed: 'Не удалось выполнить вход',
     sizeSmall: 'Маленькая',
     sizeMedium: 'Средняя',
     sizeLarge: 'Большая',
@@ -167,6 +180,12 @@ const text = {
     credential: 'PIN or QR code',
     openAccess: 'Verify and open',
     accessGranted: 'Locker opened',
+    accessExpired: 'Access code expired or already used',
+    invalidAccess: 'Invalid PIN or QR',
+    bookingExpired: 'Booking expired',
+    lockerNotFound: 'Locker not found',
+    accessLocked: 'Access temporarily locked, contact an operator',
+    accessFailed: 'Access failed',
     sizeSmall: 'Small',
     sizeMedium: 'Medium',
     sizeLarge: 'Large',
@@ -180,6 +199,26 @@ const text = {
   },
 } as const;
 
+type TerminalCopy = (typeof text)[Language];
+
+function translateAccessReason(reason: string | undefined, labels: TerminalCopy) {
+  if (!reason) {
+    return labels.accessFailed;
+  }
+
+  const dictionary: Record<string, string> = {
+    'Access granted': labels.accessGranted,
+    'Access code expired or already used': labels.accessExpired,
+    'Invalid access credential': labels.invalidAccess,
+    'Invalid PIN or QR': labels.invalidAccess,
+    'Booking expired': labels.bookingExpired,
+    'Locker not found': labels.lockerNotFound,
+    'Access temporarily locked, contact an operator': labels.accessLocked,
+  };
+
+  return dictionary[reason] ?? reason;
+}
+
 const sizes: Array<{
   id: LockerSize;
   labelKey: 'sizeSmall' | 'sizeMedium' | 'sizeLarge';
@@ -189,6 +228,12 @@ const sizes: Array<{
   { id: 'MEDIUM', labelKey: 'sizeMedium', capacityKey: 'capacityMedium' },
   { id: 'LARGE', labelKey: 'sizeLarge', capacityKey: 'capacityLarge' },
 ];
+
+const lockerSizeLabelKeys: Record<LockerSize, 'sizeSmall' | 'sizeMedium' | 'sizeLarge'> = {
+  SMALL: 'sizeSmall',
+  MEDIUM: 'sizeMedium',
+  LARGE: 'sizeLarge',
+};
 
 const defaultDurations = [
   { id: 'SMALL-15', name: 'SMALL 15min', lockerSize: 'SMALL' as LockerSize, durationMinutes: 15, price: 5000, currency: 'UZS', isActive: true },
@@ -227,14 +272,14 @@ export function CustomerTerminal() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [paymentResult, setPaymentResult] = useState<DemoPaymentResponse | null>(null);
   const [isPaying, setIsPaying] = useState(false);
-  const [idleLeft, setIdleLeft] = useState(90);
+  const [idleLeft, setIdleLeft] = useState(IDLE_RESET_SECONDS);
   const [error, setError] = useState<string | null>(null);
   const [accessLockerId, setAccessLockerId] = useState('');
   const [credential, setCredential] = useState('');
   const [accessResult, setAccessResult] = useState<string | null>(null);
   const [accessResetLeft, setAccessResetLeft] = useState<number | null>(null);
   const [isVerifyingAccess, setIsVerifyingAccess] = useState(false);
-  const t = text[language] as Record<string, string>;
+  const t: TerminalCopy = text[language];
 
   const { data, refetch, isLoading } = useQuery({
     queryKey: ['terminal-lockers'],
@@ -301,7 +346,7 @@ export function CustomerTerminal() {
     setAccessResult(null);
     setAccessResetLeft(null);
     setIsVerifyingAccess(false);
-    setIdleLeft(90);
+    setIdleLeft(IDLE_RESET_SECONDS);
   }
 
   function goBack() {
@@ -341,7 +386,7 @@ export function CustomerTerminal() {
   }
 
   useEffect(() => {
-    const resetIdle = () => setIdleLeft(90);
+    const resetIdle = () => setIdleLeft(IDLE_RESET_SECONDS);
     window.addEventListener('pointerdown', resetIdle);
     window.addEventListener('keydown', resetIdle);
     return () => {
@@ -355,7 +400,7 @@ export function CustomerTerminal() {
       setIdleLeft((current) => {
         if (current <= 1) {
           resetTerminal();
-          return 90;
+          return IDLE_RESET_SECONDS;
         }
 
         return current - 1;
@@ -429,7 +474,7 @@ export function CustomerTerminal() {
   }
 
   async function submitSmsCode() {
-    if (smsCode.trim().length !== 4) {
+    if (smsCode.trim().length < 4) {
       setError(t.smsRequired);
       return;
     }
@@ -462,11 +507,11 @@ export function CustomerTerminal() {
 
     try {
       const result = await verifyAccess(lockerNumber, credential.trim());
-      setAccessResult(result.valid ? t.accessGranted : result.reason);
+      setAccessResult(result.valid ? t.accessGranted : translateAccessReason(result.reason, t));
       setAccessResetLeft(result.valid ? 10 : null);
       await refetch();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Access failed');
+      setError(requestError instanceof Error ? translateAccessReason(requestError.message, t) : t.accessFailed);
     } finally {
       setIsVerifyingAccess(false);
     }
@@ -783,7 +828,9 @@ export function CustomerTerminal() {
                         {t.lockerCardNumber}
                       </span>
                       <span className="block text-4xl font-semibold leading-none">{locker.number}</span>
-                      <span className="text-sm font-bold uppercase text-[#ffffff]/80">{t[`size${toTitleCase(locker.size)}`] ?? locker.size}</span>
+                      <span className="text-sm font-bold uppercase text-[#ffffff]/80">
+                        {t[lockerSizeLabelKeys[locker.size]]}
+                      </span>
                     </motion.button>
                   ))}
                 </div>
@@ -878,10 +925,6 @@ function QrPreview({ value }: { value: string }) {
       <QRCodeSVG value={value} size={288} bgColor="#ffffff" fgColor="#1a212f" level="M" />
     </div>
   );
-}
-
-function toTitleCase(value: string) {
-  return value.charAt(0) + value.slice(1).toLowerCase();
 }
 
 function formatDuration(minutes: number, language: Language) {

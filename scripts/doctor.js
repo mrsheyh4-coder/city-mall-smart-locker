@@ -18,6 +18,7 @@ const backendDir = path.join(rootDir, 'backend');
 const frontendDir = path.join(rootDir, 'frontend');
 const backendEnvPath = path.join(backendDir, '.env');
 const frontendCachePath = path.join(frontendDir, '.next');
+const prismaClientPath = path.join(backendDir, 'node_modules', '.prisma', 'client', 'index.js');
 const apiHeaders = { 'X-API-Version': '1' };
 
 let failures = 0;
@@ -97,11 +98,16 @@ function checkPrismaGenerate() {
   const output = `${result.stderr}\n${result.stdout}`;
 
   if (output.includes('EPERM') && output.includes('query_engine-windows')) {
-    markWarning(
-      'Prisma generate skipped because a running backend is locking the Prisma engine DLL',
-    );
-    markWarning('Stop backend and run npm run doctor again if Prisma client changed');
-    return true;
+    const backendPid = getPidOnPort(4000);
+
+    if (fs.existsSync(prismaClientPath)) {
+      const pidDetail = backendPid ? ` (backend pid ${backendPid})` : '';
+      ok(`Prisma client is available; engine DLL is locked by a running Node process${pidDetail}`);
+      return true;
+    }
+
+    markFailure('Prisma generate failed because the Prisma engine DLL is locked and no generated client was found');
+    return false;
   }
 
   markFailure(`Prisma generate failed\n${result.stderr || result.stdout}`);
@@ -161,6 +167,107 @@ async function checkSeed(databaseUrl) {
   }
 }
 
+async function checkDataConsistency(databaseUrl) {
+  log('\nData consistency');
+  const client = new Client({ connectionString: databaseUrl });
+
+  try {
+    await client.connect();
+
+    const activeLockerMismatches = await client.query(`
+      select l.number, l.status
+      from lockers l
+      where l.status in ('OCCUPIED', 'RESERVED')
+        and not exists (
+          select 1
+          from bookings b
+          where b."lockerId" = l.id
+            and b.status = 'ACTIVE'
+            and b."expiresAt" > now()
+        )
+      order by l.number
+      limit 8
+    `);
+
+    if (activeLockerMismatches.rowCount > 0) {
+      markWarning(
+        `Found ${activeLockerMismatches.rowCount} occupied/reserved locker(s) without a live active booking: ${formatLockerRows(activeLockerMismatches.rows)}`,
+      );
+    } else {
+      ok('Occupied/reserved lockers have live active bookings');
+    }
+
+    const completedAccessMismatches = await client.query(`
+      select distinct l.number
+      from lockers l
+      join access_codes ac on ac."lockerId" = l.id
+      join bookings b on b.id = ac."bookingId"
+      where ac."usedAt" is not null
+        and b.status = 'ACTIVE'
+        and l.status in ('OCCUPIED', 'RESERVED')
+      order by l.number
+      limit 8
+    `);
+
+    if (completedAccessMismatches.rowCount > 0) {
+      markFailure(
+        `Access was already used but booking/locker is still active: ${formatLockerRows(completedAccessMismatches.rows)}`,
+      );
+    } else {
+      ok('Used access codes do not leave lockers active');
+    }
+
+    const availableOpenLockers = await client.query(`
+      select number
+      from lockers
+      where status = 'AVAILABLE'
+        and "isOpen" = true
+      order by number
+      limit 8
+    `);
+
+    if (availableOpenLockers.rowCount > 0) {
+      markFailure(
+        `Available locker(s) are still marked open: ${formatLockerRows(availableOpenLockers.rows)}`,
+      );
+    } else {
+      ok('Available lockers are closed');
+    }
+
+    const activeBookingMismatches = await client.query(`
+      select l.number, l.status
+      from bookings b
+      join lockers l on l.id = b."lockerId"
+      where b.status = 'ACTIVE'
+        and b."expiresAt" > now()
+        and l.status not in ('OCCUPIED', 'RESERVED')
+      order by l.number
+      limit 8
+    `);
+
+    if (activeBookingMismatches.rowCount > 0) {
+      markFailure(
+        `Live active booking exists but locker is not occupied/reserved: ${formatLockerRows(activeBookingMismatches.rows)}`,
+      );
+    } else {
+      ok('Live active bookings match locker status');
+    }
+  } catch (error) {
+    markFailure(`Data consistency check failed: ${error.message}`);
+    return false;
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+
+  return true;
+}
+
+function formatLockerRows(rows) {
+  return rows
+    .map((row) => `L-${String(row.number).padStart(2, '0')}${row.status ? `/${row.status}` : ''}`)
+    .join(', ');
+}
+
 async function checkBackendApi() {
   log('\nBackend API');
   const backendPid = getPidOnPort(4000);
@@ -186,6 +293,22 @@ async function checkBackendApi() {
     }
 
     ok(`Backend API healthy (${response.body.meta.total} lockers)`);
+
+    const health = await requestJson('http://localhost:4000/api/health', apiHeaders);
+    if (health.statusCode !== 200 || health.body?.status !== 'ok') {
+      markFailure(`Backend health returned HTTP ${health.statusCode}`);
+      return false;
+    }
+
+    ok('Backend health endpoint is healthy');
+
+    const tariffs = await requestJson('http://localhost:4000/api/tariffs', apiHeaders);
+    if (tariffs.statusCode !== 200 || !Array.isArray(tariffs.body)) {
+      markFailure(`Backend tariffs returned HTTP ${tariffs.statusCode}`);
+      return false;
+    }
+
+    ok(`Backend tariffs endpoint healthy (${tariffs.body.length} tariff(s))`);
     return true;
   } catch (error) {
     markFailure(`Backend API request failed: ${error.message}`);
@@ -219,7 +342,20 @@ async function checkFrontend() {
       return false;
     }
 
-    ok('Frontend is serving successfully');
+    const routeResults = await Promise.all(
+      ['terminal', 'login', 'dashboard'].map(async (route) => ({
+        route,
+        response: await requestJsonLikeText(`http://localhost:3000/${route}`),
+      })),
+    );
+
+    const failedRoute = routeResults.find((item) => item.response.statusCode !== 200);
+    if (failedRoute) {
+      markFailure(`Frontend /${failedRoute.route} returned HTTP ${failedRoute.response.statusCode}`);
+      return false;
+    }
+
+    ok('Frontend is serving core pages successfully');
     return true;
   } catch (error) {
     markFailure(`Frontend request failed: ${error.message}`);
@@ -278,6 +414,7 @@ async function main() {
       checkPrismaGenerate();
       checkMigrationStatus();
       await checkSeed(env.DATABASE_URL);
+      await checkDataConsistency(env.DATABASE_URL);
     }
   }
 

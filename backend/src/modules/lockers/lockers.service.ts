@@ -423,7 +423,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Too many SMS requests. Try again later.');
     }
 
-    const code = String(randomInt(0, 10_000)).padStart(4, '0');
+    const code = this.buildSmsAuthCode();
     const expiresAt = new Date(Date.now() + 5 * 60_000);
     const user = await this.prisma.user.upsert({
       where: { phone },
@@ -442,14 +442,12 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
 
     const sms = await this.queueAccessSms(
       phone,
-      `Tashkent City Mall tasdiqlash kodi: ${code}`,
+      this.buildSmsAuthMessage(code),
     );
 
     if (!sms.queued && (process.env.SMS_MODE ?? 'MOCK') === 'ESKIZ') {
       const error =
-        'error' in sms && typeof sms.error === 'string'
-          ? sms.error
-          : undefined;
+        'error' in sms && typeof sms.error === 'string' ? sms.error : undefined;
 
       throw new BadRequestException(
         error ??
@@ -489,7 +487,13 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Too many invalid SMS code attempts.');
     }
 
-    if (verification.codeHash !== this.hashSmsCode(phone, code)) {
+    const normalizedCode = this.normalizeSmsCode(code);
+    const validCodeHashes = this.getAcceptedSmsAuthCodeHashes(
+      phone,
+      verification.codeHash,
+    );
+
+    if (!validCodeHashes.includes(this.hashSmsCode(phone, normalizedCode))) {
       await this.prisma.smsVerification.update({
         where: { id: verification.id },
         data: { attempts: { increment: 1 } },
@@ -728,9 +732,41 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
 
     if (valid) {
       await this.hardware.openLocker(locker.number);
-      updatedLocker = await this.prisma.locker.update({
-        where: { id: locker.id },
-        data: { isOpen: true },
+      updatedLocker = await this.prisma.$transaction(async (tx) => {
+        if (accessCode) {
+          await tx.accessCode.update({
+            where: { id: accessCode.id },
+            data: { usedAt: now },
+          });
+        }
+
+        await tx.booking.updateMany({
+          where: {
+            ...(accessCode?.bookingId
+              ? { id: accessCode.bookingId }
+              : { lockerId: locker.id }),
+            status: BookingStatus.ACTIVE,
+          },
+          data: { status: BookingStatus.COMPLETED, completedAt: now },
+        });
+
+        await tx.session.updateMany({
+          where: { lockerId: locker.id, status: SessionStatus.ACTIVE },
+          data: { status: SessionStatus.COMPLETED, endTime: now },
+        });
+
+        return tx.locker.update({
+          where: { id: locker.id },
+          data: {
+            status: LockerStatus.AVAILABLE,
+            isOpen: false,
+            pinCode: null,
+            qrCode: null,
+            customerName: null,
+            bookingStartAt: null,
+            bookingExpiresAt: null,
+          },
+        });
       });
     }
 
@@ -1482,6 +1518,60 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
 
   private shouldExposeMockSmsCode(state?: string) {
     return process.env.NODE_ENV !== 'production' || state === 'MOCK';
+  }
+
+  private buildSmsAuthCode() {
+    const template = process.env.SMS_AUTH_MESSAGE;
+    if (template && !template.includes('{code}') && this.isSmsAuthTestMode()) {
+      return template;
+    }
+
+    return String(randomInt(0, 10_000)).padStart(4, '0');
+  }
+
+  private buildSmsAuthMessage(code: string) {
+    const template = process.env.SMS_AUTH_MESSAGE;
+    if (!template) {
+      return `Tashkent City Mall tasdiqlash kodi: ${code}`;
+    }
+
+    return template.replaceAll('{code}', code);
+  }
+
+  private normalizeSmsCode(code: string) {
+    return code.trim();
+  }
+
+  private getAcceptedSmsAuthCodeHashes(phone: string, storedCodeHash: string) {
+    const hashes = [storedCodeHash];
+
+    if (this.isSmsAuthTestMode()) {
+      hashes.push(
+        ...this.getEskizTestMessages().map((acceptedCode) =>
+          this.hashSmsCode(phone, acceptedCode),
+        ),
+      );
+    }
+
+    return hashes;
+  }
+
+  private isSmsAuthTestMode() {
+    const template = process.env.SMS_AUTH_MESSAGE;
+    return (
+      process.env.NODE_ENV !== 'production' &&
+      typeof template === 'string' &&
+      !template.includes('{code}') &&
+      this.getEskizTestMessages().includes(template)
+    );
+  }
+
+  private getEskizTestMessages() {
+    return [
+      'Bu Eskiz dan test',
+      '\u042d\u0442\u043e \u0442\u0435\u0441\u0442 \u043e\u0442 Eskiz',
+      'This is test from Eskiz',
+    ];
   }
 
   private buildQrPayload(

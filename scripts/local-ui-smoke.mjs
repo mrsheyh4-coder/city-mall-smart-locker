@@ -82,6 +82,7 @@ async function testAdmin(page) {
   await page.waitForURL('**/admin', { timeout: 10_000 });
   await assertStyled(page, 'Admin page');
   await page.getByText('Tariflarni boshqarish').waitFor();
+  await page.getByRole('button', { name: /Tariflarni boshqarish/ }).click();
 
   const nameField = page.locator('input[placeholder="Tariff nomi"]');
   const testTariffName = `SMALL TEST ${Date.now()}`;

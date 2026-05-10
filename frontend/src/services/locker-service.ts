@@ -750,6 +750,8 @@ export function validateDemoAccess(
   }
 
   const valid = credential === locker.pinCode || credential === locker.qrCode;
+  const updatedLocker = valid ? releaseDemoLocker(lockerId) : locker;
+
   addDemoLog(
     `${valid ? 'Access granted' : 'Access denied'} for locker ${lockerId}`,
     valid ? 'INFO' : 'WARN',
@@ -758,7 +760,7 @@ export function validateDemoAccess(
   return {
     valid,
     reason: valid ? 'Access granted' : 'Invalid PIN or QR',
-    data: locker,
+    data: updatedLocker,
   };
 }
 
