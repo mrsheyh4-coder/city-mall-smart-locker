@@ -1,7 +1,20 @@
 services:
   - type: web
+    name: city-mall-smart-locker
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: .next-build
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://city-mall-smart-locker-api.onrender.com/api
+      - key: NEXT_PUBLIC_SOCKET_URL
+        value: https://city-mall-smart-locker-api.onrender.com
+
+  - type: web
     name: city-mall-smart-locker-api
-    env: node
+    runtime: node
     plan: free
     rootDir: backend
     buildCommand: npm ci && npm run prisma:generate && npm run build
@@ -10,32 +23,28 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
       - key: FRONTEND_URL
-        value: https://city-mall-smart-locker.netlify.app
+        value: https://city-mall-smart-locker.onrender.com
       - key: DATABASE_URL
         fromDatabase:
           name: city-mall-smart-locker-db
           property: connectionString
       - key: ADMIN_PIN
-        sync: false
+        value: "2026"
       - key: ADMIN_SESSION_SECRET
         generateValue: true
       - key: PAYMENT_MODE
         value: MOCK
       - key: SMS_MODE
-        value: ESKIZ
+        value: MOCK
       - key: SMS_PROVIDER
         value: ESKIZ
       - key: SMS_ALLOW_LOCAL_SEND
         value: "false"
-      - key: ESKIZ_EMAIL
-        sync: false
-      - key: ESKIZ_PASSWORD
-        sync: false
       - key: ESKIZ_SENDER
         value: "4546"
+      - key: SMS_AUTH_MESSAGE
+        value: "Tashkent City Mall tasdiqlash kodi: {code}"
       - key: HARDWARE_MODE
         value: MOCK
       - key: ONE_C_MODE
