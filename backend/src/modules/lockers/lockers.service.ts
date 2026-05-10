@@ -445,6 +445,18 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       `Tashkent City Mall tasdiqlash kodi: ${code}`,
     );
 
+    if (!sms.queued && (process.env.SMS_MODE ?? 'MOCK') === 'ESKIZ') {
+      const error =
+        'error' in sms && typeof sms.error === 'string'
+          ? sms.error
+          : undefined;
+
+      throw new BadRequestException(
+        error ??
+          'SMS delivery failed. Check Eskiz account status and approved message templates.',
+      );
+    }
+
     await this.createLog(
       'INFO',
       'sms-auth',
