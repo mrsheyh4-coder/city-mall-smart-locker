@@ -824,7 +824,7 @@ export function CustomerTerminal() {
                     inputMode="numeric"
                     maxLength={6}
                     placeholder={t.smsCode}
-                    className="mt-8 min-h-24 w-full rounded-[2rem] border border-[#ffffff]/10 bg-[#1a212f]/70 px-8 text-center text-6xl font-semibold tracking-[0.28em] text-[#ffffff] outline-none ring-[#b3806e]/40 focus:ring-4"
+                    className={`mt-8 min-h-24 w-full rounded-[2rem] border border-[#ffffff]/10 bg-[#1a212f]/70 px-8 text-center text-5xl font-semibold text-[#ffffff] outline-none ring-[#b3806e]/40 placeholder:text-4xl placeholder:tracking-normal focus:ring-4 sm:text-6xl ${smsCode ? 'tracking-[0.12em]' : 'tracking-normal'}`}
                   />
                   <div className="mt-8 grid gap-4 md:grid-cols-2">
                     <Button variant="secondary" className="min-h-20 text-xl" disabled={isSendingSms} onClick={() => void sendSmsCode()}>
@@ -949,7 +949,7 @@ export function CustomerTerminal() {
                   <h2 className="mt-6 text-5xl font-semibold">{t.success}</h2>
                   <div className="mt-8 rounded-[2rem] border border-[#b3806e]/25 bg-[#1a212f]/60 p-8">
                     <p className="text-lg font-bold uppercase text-[#ffffff]/55">{t.pin}</p>
-                    <p className="mt-3 text-7xl font-semibold tracking-[0.22em] text-[#ffffff]">
+                    <p className="mt-3 text-6xl font-semibold tracking-[0.12em] text-[#ffffff] sm:text-7xl">
                       {paymentResult.access.pinCode}
                     </p>
                   </div>
