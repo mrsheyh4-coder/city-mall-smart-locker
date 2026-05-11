@@ -51,6 +51,7 @@ async function customerFlow(locker) {
   const phone = makeQaPhone('90', locker.number);
   const sms = await post('/sms/auth/request', { phone });
   assert(sms.devCode, 'SMS demo code is returned for QA');
+  assert(sms.devCode.length === 6, '6-digit SMS code is returned');
   const verified = await post('/sms/auth/verify', {
     phone,
     code: sms.devCode,
@@ -68,7 +69,7 @@ async function customerFlow(locker) {
   });
 
   assert(created.booking?.id, 'Booking is created');
-  assert(created.access?.pinCode?.length === 6, '6-digit PIN is generated');
+  assert(created.access?.pinCode === sms.devCode, 'Locker PIN matches the SMS code');
   assert(created.access?.qrCode, 'QR payload is generated');
   assert(created.data?.status === 'RESERVED', 'Locker moves to RESERVED after booking');
 

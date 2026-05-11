@@ -84,15 +84,15 @@ export async function fetchLockers(): Promise<LockersResponse> {
       throw error;
     }
 
+    if (shouldDisableDemoFallback()) {
+      throw error;
+    }
+
     return getDemoLockerState();
   }
 }
 
 export async function fetchAdminStatistics(): Promise<AdminStatistics> {
-  if (isDemoAdminSession()) {
-    return buildDemoAdminStatistics();
-  }
-
   try {
     const response = await fetch(`${API_URL}/admin/statistics`, {
       cache: 'no-store',
@@ -101,7 +101,7 @@ export async function fetchAdminStatistics(): Promise<AdminStatistics> {
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 404) {
-        if (shouldDisableDemoFallback()) {
+        if (hasAdminToken() || shouldDisableDemoFallback()) {
           throw new Error('Admin authentication is required');
         }
 
@@ -220,6 +220,7 @@ export async function createBooking(input: {
   durationMinutes: number;
   phone: string;
   customerName?: string;
+  language?: 'uz' | 'ru' | 'en';
   termsAccepted: boolean;
   smsVerificationToken?: string;
 }): Promise<BookingResponse> {
@@ -236,7 +237,7 @@ export async function createBooking(input: {
   return response.json();
 }
 
-export async function requestSmsAuth(phone: string): Promise<{
+export async function requestSmsAuth(phone: string, language?: 'uz' | 'ru' | 'en'): Promise<{
   sent: boolean;
   expiresAt: string;
   devCode?: string;
@@ -247,7 +248,7 @@ export async function requestSmsAuth(phone: string): Promise<{
     const response = await fetchWithTimeout(`${API_URL}/sms/auth/request`, {
       method: 'POST',
       headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ phone, language }),
     }, SMS_REQUEST_TIMEOUT_MS);
 
     if (!response.ok) {
@@ -257,6 +258,10 @@ export async function requestSmsAuth(phone: string): Promise<{
     return response.json();
   } catch (error) {
     if (!isNetworkError(error)) {
+      throw error;
+    }
+
+    if (shouldDisableDemoFallback()) {
       throw error;
     }
 
@@ -290,6 +295,10 @@ export async function verifySmsAuth(phone: string, code: string): Promise<{
     return response.json();
   } catch (error) {
     if (!isNetworkError(error)) {
+      throw error;
+    }
+
+    if (shouldDisableDemoFallback()) {
       throw error;
     }
 
@@ -802,6 +811,10 @@ function getAdminHeaders(json = false) {
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+}
+
+function hasAdminToken() {
+  return typeof window !== 'undefined' && Boolean(window.localStorage.getItem(ADMIN_TOKEN_KEY));
 }
 
 function isDemoAdminSession() {
@@ -1465,7 +1478,7 @@ function setDemoRevenue(value: number) {
 }
 
 function createLocalSmsCode(phone: string) {
-  const code = String(Math.floor(Math.random() * 10_000)).padStart(4, '0');
+  const code = String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0');
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(`city-mall-sms-code-${normalizePhone(phone)}`, code);
   }

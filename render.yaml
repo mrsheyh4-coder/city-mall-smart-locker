@@ -30,9 +30,9 @@ services:
           name: city-mall-smart-locker-db
           property: connectionString
       - key: ADMIN_PIN
-        value: "2026"
+        sync: false
       - key: ADMIN_SESSION_SECRET
-        generateValue: true
+        sync: false
       - key: PAYMENT_MODE
         value: MOCK
       - key: SMS_MODE
@@ -56,7 +56,7 @@ services:
       - key: DEVSMS_SERVICE_NAME
         value: City Mall
       - key: SMS_AUTH_MESSAGE
-        value: "Tashkent City Mall tasdiqlash kodi: {code}"
+        value: "{code}"
       - key: HARDWARE_MODE
         value: MOCK
       - key: ONE_C_MODE

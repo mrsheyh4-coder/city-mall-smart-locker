@@ -27,6 +27,7 @@ type Step = 'language' | 'size' | 'duration' | 'phone' | 'sms' | 'terms' | 'lock
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
 const IDLE_RESET_SECONDS = 60;
+const LANGUAGE_KEY = 'city-mall-language';
 
 const text = {
   uz: {
@@ -37,7 +38,7 @@ const text = {
     duration: 'Saqlash muddatini tanlang',
     phone: 'Telefon raqamingiz',
     sms: 'SMS kodni kiriting',
-    smsSent: '4 xonali kod telefon raqamingizga yuborildi.',
+    smsSent: '6 xonali kod telefon raqamingizga yuborildi. Shu kod yashik PIN kodi ham bo‘ladi.',
     smsCode: 'Tasdiqlash kodi',
     smsSend: 'SMS kod yuborish',
     smsVerify: 'Tasdiqlash',
@@ -45,6 +46,7 @@ const text = {
     smsInvalid: "SMS kod noto'g'ri",
     smsExpired: 'SMS kod muddati tugagan. Yangi kod yuboring.',
     smsTooMany: "Juda ko'p noto'g'ri urinish. Birozdan keyin qayta urinib ko'ring.",
+    rateLimited: "Juda ko'p urinish bo'ldi. Iltimos 1 daqiqadan keyin qayta urinib ko'ring.",
     smsSendFailed: 'SMS yuborilmadi. Qayta urinib ko‘ring yoki operatorga murojaat qiling.',
     terms: 'Saqlash shartlari',
     termsIntro: 'Davom etish uchun saqlash shartlari va taqiqlarni tasdiqlang.',
@@ -66,6 +68,8 @@ const text = {
     pin: 'PIN kod',
     qr: 'QR kirish kodi',
     idle: 'Avtomatik reset',
+    help: 'Yordam',
+    helpMessage: 'Operatorga murojaat qiling.',
     access: 'Yashikni ochish',
     accessTitle: 'Yashikni ochish',
     lockerNumber: 'Yashik raqami',
@@ -97,7 +101,7 @@ const text = {
     duration: 'Выберите срок хранения',
     phone: 'Ваш номер телефона',
     sms: 'Введите SMS код',
-    smsSent: '4-значный код отправлен на ваш телефон.',
+    smsSent: '6-значный код отправлен на ваш телефон. Этот же код будет PIN-кодом ячейки.',
     smsCode: 'Код подтверждения',
     smsSend: 'Отправить SMS',
     smsVerify: 'Подтвердить',
@@ -105,6 +109,7 @@ const text = {
     smsInvalid: 'Неверный SMS код',
     smsExpired: 'Срок SMS кода истек. Отправьте новый код.',
     smsTooMany: 'Слишком много неверных попыток. Попробуйте позже.',
+    rateLimited: 'Слишком много попыток. Попробуйте снова через 1 минуту.',
     smsSendFailed: 'Не удалось отправить SMS. Попробуйте еще раз или обратитесь к оператору.',
     terms: 'Условия хранения',
     termsIntro: 'Подтвердите условия хранения и ограничения, чтобы продолжить.',
@@ -126,6 +131,8 @@ const text = {
     pin: 'PIN код',
     qr: 'QR код доступа',
     idle: 'Автосброс',
+    help: 'Yordam',
+    helpMessage: 'Обратитесь к оператору.',
     access: 'Открыть ячейку',
     accessTitle: 'Открыть ячейку',
     lockerNumber: 'Номер ячейки',
@@ -157,7 +164,7 @@ const text = {
     duration: 'Choose storage duration',
     phone: 'Your phone number',
     sms: 'Enter SMS code',
-    smsSent: 'A 4-digit code was sent to your phone.',
+    smsSent: 'A 6-digit code was sent to your phone. This code will also be your locker PIN.',
     smsCode: 'Verification code',
     smsSend: 'Send SMS code',
     smsVerify: 'Verify',
@@ -165,6 +172,7 @@ const text = {
     smsInvalid: 'Invalid SMS code',
     smsExpired: 'SMS code expired. Send a new code.',
     smsTooMany: 'Too many invalid attempts. Try again later.',
+    rateLimited: 'Too many attempts. Please try again after 1 minute.',
     smsSendFailed: 'SMS could not be sent. Try again or contact an operator.',
     terms: 'Storage terms',
     termsIntro: 'Confirm the storage terms and restrictions to continue.',
@@ -186,6 +194,8 @@ const text = {
     pin: 'PIN code',
     qr: 'QR access code',
     idle: 'Auto reset',
+    help: 'Yordam',
+    helpMessage: 'Contact an operator.',
     access: 'Open locker',
     accessTitle: 'Open locker',
     lockerNumber: 'Locker number',
@@ -226,6 +236,7 @@ function translateAccessReason(reason: string | undefined, labels: TerminalCopy)
     'Booking expired': labels.bookingExpired,
     'Locker not found': labels.lockerNotFound,
     'Access temporarily locked, contact an operator': labels.accessLocked,
+    'Too many requests, try again later': labels.rateLimited,
   };
 
   return dictionary[reason] ?? reason;
@@ -242,6 +253,7 @@ function translateTerminalError(error: unknown, labels: TerminalCopy, fallback: 
     'SMS verification is missing or expired': labels.smsExpired,
     'Too many invalid SMS code attempts.': labels.smsTooMany,
     'Too many SMS requests. Try again later.': labels.smsTooMany,
+    'Too many requests, try again later': labels.rateLimited,
     'SMS delivery failed. Check SMS provider account status and approved message templates.':
       labels.smsSendFailed,
     'Locker API request failed': fallback,
@@ -288,7 +300,7 @@ const languageButtons: { code: Language; label: string }[] = [
 ];
 
 export function CustomerTerminal() {
-  const [language, setLanguage] = useState<Language>('uz');
+  const [language, setLanguage] = useState<Language>('ru');
   const [step, setStep] = useState<Step>('language');
   const [size, setSize] = useState<LockerSize>('MEDIUM');
   const [duration, setDuration] = useState<Tariff>(defaultDurations[5]);
@@ -311,6 +323,24 @@ export function CustomerTerminal() {
   const [accessResetLeft, setAccessResetLeft] = useState<number | null>(null);
   const [isVerifyingAccess, setIsVerifyingAccess] = useState(false);
   const t: TerminalCopy = text[language];
+
+  useEffect(() => {
+    const savedLanguage = window.localStorage.getItem(LANGUAGE_KEY);
+
+    if (savedLanguage === 'uz' || savedLanguage === 'ru' || savedLanguage === 'en') {
+      setLanguage(savedLanguage);
+      document.documentElement.lang = savedLanguage;
+      return;
+    }
+
+    document.documentElement.lang = language;
+  }, [language]);
+
+  function changeLanguage(nextLanguage: Language) {
+    setLanguage(nextLanguage);
+    window.localStorage.setItem(LANGUAGE_KEY, nextLanguage);
+    document.documentElement.lang = nextLanguage;
+  }
 
   const { data, refetch, isLoading } = useQuery({
     queryKey: ['terminal-lockers'],
@@ -478,6 +508,7 @@ export function CustomerTerminal() {
           durationMinutes: duration.durationMinutes,
         phone,
         customerName: 'Terminal customer',
+        language,
         termsAccepted,
         smsVerificationToken: smsToken,
       });
@@ -508,7 +539,7 @@ export function CustomerTerminal() {
     setIsSendingSms(true);
 
     try {
-      const result = await requestSmsAuth(phone);
+      const result = await requestSmsAuth(phone, language);
       setSmsDevCode(result.devCode ?? null);
       setStep('sms');
     } catch (requestError) {
@@ -519,7 +550,7 @@ export function CustomerTerminal() {
   }
 
   async function submitSmsCode() {
-    if (smsCode.trim().length < 4) {
+    if (smsCode.trim().length < 6) {
       setError(t.smsRequired);
       return;
     }
@@ -644,7 +675,7 @@ export function CustomerTerminal() {
                     <button
                       key={item.code}
                       onClick={() => {
-                        setLanguage(item.code);
+                        changeLanguage(item.code);
                         setStep('size');
                       }}
                     className="terminal-choice-card luxury-card min-h-44 min-w-0 rounded-[2rem] p-8 text-3xl font-semibold transition hover:-translate-y-1 hover:border-[#b3806e]/55 hover:bg-[#b3806e]/14 sm:text-4xl"
@@ -789,9 +820,9 @@ export function CustomerTerminal() {
                   ) : null}
                   <input
                     value={smsCode}
-                    onChange={(event) => setSmsCode(event.target.value.replace(/\D/g, '').slice(0, 4))}
+                    onChange={(event) => setSmsCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
                     inputMode="numeric"
-                    maxLength={4}
+                    maxLength={6}
                     placeholder={t.smsCode}
                     className="mt-8 min-h-24 w-full rounded-[2rem] border border-[#ffffff]/10 bg-[#1a212f]/70 px-8 text-center text-6xl font-semibold tracking-[0.28em] text-[#ffffff] outline-none ring-[#b3806e]/40 focus:ring-4"
                   />
@@ -799,7 +830,7 @@ export function CustomerTerminal() {
                     <Button variant="secondary" className="min-h-20 text-xl" disabled={isSendingSms} onClick={() => void sendSmsCode()}>
                       {isSendingSms ? getSmsSendingLabel(language) : t.smsSend}
                     </Button>
-                    <Button className="min-h-20 text-xl" disabled={isVerifyingSms || smsCode.length !== 4} onClick={() => void submitSmsCode()}>
+                    <Button className="min-h-20 text-xl" disabled={isVerifyingSms || smsCode.length !== 6} onClick={() => void submitSmsCode()}>
                       {t.smsVerify}
                     </Button>
                   </div>
@@ -936,6 +967,16 @@ export function CustomerTerminal() {
             </Panel>
           ) : null}
         </AnimatePresence>
+        <Button
+          variant="secondary"
+          className="fixed bottom-5 right-5 z-50 h-16 w-16 rounded-full border-[#ffffff]/90 p-0 shadow-[0_18px_42px_rgba(0,0,0,0.32)] sm:bottom-8 sm:right-8 sm:h-20 sm:w-20"
+          onClick={() => setError(t.helpMessage)}
+          aria-label={t.help}
+          title={t.help}
+        >
+          <Phone size={28} />
+          <span className="sr-only">{t.help}</span>
+        </Button>
       </div>
     </main>
   );

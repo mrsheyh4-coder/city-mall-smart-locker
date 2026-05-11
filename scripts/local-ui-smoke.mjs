@@ -65,9 +65,9 @@ async function testTerminal(page) {
   await clickUnique(page, 'button', 'SMS kod yuborish');
   await page.getByRole('heading', { name: 'SMS kodni kiriting' }).waitFor();
   const codeText = await page.getByText(/Demo kod:/).innerText();
-  const code = codeText.replace(/\D/g, '').slice(-4);
-  assert(code.length === 4, 'Demo SMS code was not shown');
-  await fillBySelector(page, 'input[inputmode="numeric"][maxlength="4"]', code);
+  const code = codeText.replace(/\D/g, '').slice(-6);
+  assert(code.length === 6, 'Demo SMS code was not shown');
+  await fillBySelector(page, 'input[inputmode="numeric"][maxlength="6"]', code);
   await clickUnique(page, 'button', 'Tasdiqlash');
   await page.getByRole('heading', { name: 'Saqlash shartlari' }).waitFor();
   await clickUnique(page, 'button', 'Ortga');

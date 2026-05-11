@@ -1062,7 +1062,7 @@ export function AdminShell() {
                     <div className="rounded-2xl border border-white/8 bg-[#1a212f]/55 p-3">
                       <p className="text-white/42">{t.expires}</p>
                       <p className="mt-1 font-semibold text-white">
-                        {locker.bookingExpiresAt ? new Date(locker.bookingExpiresAt).toLocaleTimeString() : '-'}
+                        <RemainingTime expiresAt={locker.bookingExpiresAt} labels={t} />
                       </p>
                     </div>
                   </div>
@@ -1451,6 +1451,45 @@ function getBookingStatusLabel(status: 'ALL' | Booking['status'], labels: (typeo
   };
 
   return map[status];
+}
+
+function RemainingTime({
+  expiresAt,
+  labels,
+}: {
+  expiresAt: string | null | undefined;
+  labels: (typeof adminText)[Language];
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!expiresAt) {
+      return;
+    }
+
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [expiresAt]);
+
+  return <>{formatRemainingTime(expiresAt, labels, now)}</>;
+}
+
+function formatRemainingTime(expiresAt: string | null | undefined, labels: (typeof adminText)[Language], now: number) {
+  if (!expiresAt) {
+    return '-';
+  }
+
+  const remainingMs = new Date(expiresAt).getTime() - now;
+  if (remainingMs <= 0) {
+    return labels.expired;
+  }
+
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
 }
 
 function KeyBadge() {

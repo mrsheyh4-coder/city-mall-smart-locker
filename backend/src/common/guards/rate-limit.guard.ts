@@ -50,6 +50,11 @@ export class RateLimitGuard implements CanActivate {
     bucket.count += 1;
 
     if (bucket.count > options.points) {
+      context
+        .switchToHttp()
+        .getResponse()
+        .setHeader('Retry-After', Math.ceil((bucket.resetAt - now) / 1000));
+
       throw new HttpException(
         'Too many requests, try again later',
         HttpStatus.TOO_MANY_REQUESTS,

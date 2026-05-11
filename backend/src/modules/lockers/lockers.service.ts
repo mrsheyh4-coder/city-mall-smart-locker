@@ -37,8 +37,11 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     this.expirationTimer = setInterval(() => {
+      void this.sendExpiryWarningSms();
       void this.expireOverdueBookings();
     }, 15_000);
+
+    void this.sendExpiryWarningSms();
   }
 
   onModuleDestroy() {
@@ -312,7 +315,10 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
-      await this.assertSmsVerified(dto.phone, dto.smsVerificationToken);
+      const verification = await this.assertSmsVerified(
+        dto.phone,
+        dto.smsVerificationToken,
+      );
 
       const locker = await this.findByNumber(dto.lockerId);
 
@@ -332,8 +338,9 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       const expiresAt = new Date(
         startedAt.getTime() + dto.durationMinutes * 60_000,
       );
-      const pinCode = this.generatePin();
+      const pinCode = verification.code ?? this.generatePin();
       const qrCode = this.buildQrPayload(locker.number, pinCode, expiresAt);
+      const language = this.normalizeLanguage(dto.language);
 
       const result = await this.prisma.$transaction(async (tx) => {
         const user = await tx.user.upsert({
@@ -351,6 +358,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
             userId: user.id,
             phone: dto.phone,
             customerName: dto.customerName,
+            language,
             durationMinutes: dto.durationMinutes,
             startTime: startedAt,
             expiresAt,
@@ -403,7 +411,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async requestSmsAuth(phone: string) {
+  async requestSmsAuth(phone: string, language?: string) {
     await this.prisma.smsVerification.deleteMany({
       where: {
         phone,
@@ -424,6 +432,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     }
 
     const code = this.buildSmsAuthCode();
+    const normalizedLanguage = this.normalizeLanguage(language);
     const expiresAt = new Date(Date.now() + 5 * 60_000);
     const user = await this.prisma.user.upsert({
       where: { phone },
@@ -434,6 +443,8 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.smsVerification.create({
       data: {
         phone,
+        code,
+        language: normalizedLanguage,
         userId: user.id,
         codeHash: this.hashSmsCode(phone, code),
         expiresAt,
@@ -442,7 +453,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
 
     const sms = await this.queueAccessSms(
       phone,
-      this.buildSmsAuthMessage(code),
+      this.buildSmsAuthMessage(code, normalizedLanguage),
     );
 
     if (
@@ -591,7 +602,11 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     const sms = pinCode
       ? await this.queueAccessSms(
           booking.phone,
-          `Tashkent City Mall locker ${booking.locker.number} PIN: ${pinCode}`,
+          this.buildLockerPinMessage(
+            pinCode,
+            booking.locker.number,
+            booking.language,
+          ),
         )
       : null;
 
@@ -638,9 +653,13 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async activateDemoPayment(lockerId: number, durationMinutes: number) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('Demo payment is disabled in production');
+    }
+
     const locker = await this.findByNumber(lockerId);
     const phone = '+998900000000';
-    const smsAuth = await this.requestSmsAuth(phone);
+    const smsAuth = await this.requestSmsAuth(phone, 'ru');
     if (!smsAuth.devCode) {
       throw new BadRequestException(
         'Demo payment requires local SMS mock mode',
@@ -992,6 +1011,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
           completedAt: null,
           durationMinutes: booking.durationMinutes + 60,
           expiresAt,
+          expiresWarningSmsSentAt: null,
         },
         include: { locker: true, payments: true, accessCodes: true },
       });
@@ -1077,6 +1097,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
           completedAt: null,
           durationMinutes: booking.durationMinutes + durationMinutes,
           expiresAt,
+          expiresWarningSmsSentAt: null,
         },
         include: { locker: true, payments: true, accessCodes: true },
       });
@@ -1320,6 +1341,10 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async resetDemo() {
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('Demo reset is disabled in production');
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.accessLog.deleteMany();
       await tx.accessCode.deleteMany();
@@ -1455,6 +1480,45 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     this.gateway.emitLockersUpdated(await this.findAll());
   }
 
+  private async sendExpiryWarningSms() {
+    const now = new Date();
+    const warningUntil = new Date(now.getTime() + 10 * 60_000);
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        status: BookingStatus.ACTIVE,
+        expiresWarningSmsSentAt: null,
+        expiresAt: {
+          gt: now,
+          lte: warningUntil,
+        },
+      },
+      include: { locker: true },
+      take: 25,
+    });
+
+    for (const booking of bookings) {
+      const remainingMinutes = Math.max(
+        1,
+        Math.ceil((booking.expiresAt.getTime() - Date.now()) / 60_000),
+      );
+      const message =
+        `Tashkent City Mall: до окончания аренды ячейки ${booking.locker.number} осталось ${remainingMinutes} мин. ` +
+        'Если вы не заберете вещи вовремя, хранение может быть автоматически продлено, возможно дополнительное списание.';
+
+      const sms = await this.queueAccessSms(booking.phone, message);
+      await this.prisma.booking.update({
+        where: { id: booking.id },
+        data: { expiresWarningSmsSentAt: new Date() },
+      });
+      await this.createLog(
+        sms.queued ? 'INFO' : 'WARN',
+        'sms-expiry-warning',
+        `Expiry warning SMS ${sms.state} for booking ${booking.id}`,
+        booking.lockerId,
+      );
+    }
+  }
+
   private async getBestTariff(size: LockerSize, durationMinutes: number) {
     return this.prisma.tariff.findFirst({
       where: {
@@ -1522,6 +1586,8 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     if (!verification) {
       throw new BadRequestException('SMS verification is missing or expired');
     }
+
+    return verification;
   }
 
   private hashSmsCode(phone: string, code: string) {
@@ -1555,16 +1621,54 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       return template;
     }
 
-    return String(randomInt(0, 10_000)).padStart(4, '0');
+    return String(randomInt(0, 1_000_000)).padStart(6, '0');
   }
 
-  private buildSmsAuthMessage(code: string) {
+  private buildSmsAuthMessage(code: string, language?: string) {
     const template = process.env.SMS_AUTH_MESSAGE;
+    if (language) {
+      return this.buildLocalizedSmsAuthMessage(code, language);
+    }
+
     if (!template) {
-      return `Tashkent City Mall tasdiqlash kodi: ${code}`;
+      return this.buildLocalizedSmsAuthMessage(code, language);
     }
 
     return template.replaceAll('{code}', code);
+  }
+
+  private buildLocalizedSmsAuthMessage(code: string, language?: string) {
+    switch (this.normalizeLanguage(language)) {
+      case 'uz':
+        return `Tashkent City Mall tasdiqlash kodi: ${code}. Shu kod yashik PIN kodi sifatida ham ishlatiladi.`;
+      case 'en':
+        return `Tashkent City Mall verification code: ${code}. This code will also be your locker PIN.`;
+      case 'ru':
+      default:
+        return `Tashkent City Mall: код подтверждения ${code}. Этот же код будет PIN-кодом вашей ячейки.`;
+    }
+  }
+
+  private buildLockerPinMessage(
+    pinCode: string,
+    lockerNumber: number,
+    language?: string,
+  ) {
+    switch (this.normalizeLanguage(language)) {
+      case 'uz':
+        return `Tashkent City Mall: ${lockerNumber}-yashik tayyor. PIN kod: ${pinCode}.`;
+      case 'en':
+        return `Tashkent City Mall: locker ${lockerNumber} is ready. PIN code: ${pinCode}.`;
+      case 'ru':
+      default:
+        return `Tashkent City Mall: ячейка ${lockerNumber} готова. PIN-код: ${pinCode}.`;
+    }
+  }
+
+  private normalizeLanguage(language?: string) {
+    return language === 'uz' || language === 'en' || language === 'ru'
+      ? language
+      : 'ru';
   }
 
   private normalizeSmsCode(code: string) {

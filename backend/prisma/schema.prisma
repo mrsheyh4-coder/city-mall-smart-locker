@@ -122,10 +122,12 @@ model Booking {
   user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   phone           String
   customerName    String?
+  language        String        @default("ru")
   durationMinutes Int
   status          BookingStatus @default(ACTIVE)
   startTime       DateTime      @default(now())
   expiresAt       DateTime
+  expiresWarningSmsSentAt DateTime?
   completedAt     DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -136,6 +138,7 @@ model Booking {
   @@index([userId])
   @@index([status])
   @@index([expiresAt])
+  @@index([expiresWarningSmsSentAt])
   @@map("bookings")
 }
 
@@ -198,6 +201,8 @@ model AccessCode {
 model SmsVerification {
   id          String    @id @default(cuid())
   phone       String
+  code        String?
+  language    String    @default("ru")
   userId      String?
   user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   codeHash    String

@@ -63,6 +63,10 @@ export class CreateBookingDto {
   @IsOptional()
   customerName?: string;
 
+  @IsString()
+  @IsOptional()
+  language?: string;
+
   @IsBoolean()
   termsAccepted: boolean;
 
@@ -74,6 +78,10 @@ export class CreateBookingDto {
 export class RequestSmsAuthDto {
   @IsPhoneNumber()
   phone: string;
+
+  @IsString()
+  @IsOptional()
+  language?: string;
 }
 
 export class VerifySmsAuthDto {
@@ -81,7 +89,7 @@ export class VerifySmsAuthDto {
   phone: string;
 
   @IsString()
-  @Length(4, 64)
+  @Length(6, 64)
   code: string;
 }
 

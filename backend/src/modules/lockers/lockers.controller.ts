@@ -97,6 +97,7 @@ export class LockersController {
   @Post('locker/demo-payment')
   @HttpCode(HttpStatus.OK)
   @RateLimit({ points: 10, windowMs: 60_000 })
+  @UseGuards(AdminGuard)
   activateDemoPayment(@Body() dto: DemoPaymentDto) {
     return this.lockersService.activateDemoPayment(
       dto.lockerId,
@@ -115,7 +116,7 @@ export class LockersController {
   @HttpCode(HttpStatus.OK)
   @RateLimit({ points: 3, windowMs: 60_000 })
   requestSmsAuth(@Body() dto: RequestSmsAuthDto) {
-    return this.lockersService.requestSmsAuth(dto.phone);
+    return this.lockersService.requestSmsAuth(dto.phone, dto.language);
   }
 
   @Post('sms/auth/verify')

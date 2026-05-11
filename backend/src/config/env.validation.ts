@@ -15,6 +15,9 @@ interface EnvironmentVariables {
   GOOGLE_SHEETS_PAYMENTS_SHEET?: string;
   GOOGLE_SHEETS_TARIFFS_SHEET?: string;
   DEVSMS_BASE_URL?: string;
+  SMS_MODE?: string;
+  SMS_PROVIDER?: string;
+  SMS_ALLOW_LOCAL_SEND?: string;
   DEVSMS_TOKEN?: string;
   DEVSMS_SENDER?: string;
   DEVSMS_TYPE?: string;
@@ -105,6 +108,18 @@ export function validateEnvironment(config: Record<string, unknown>) {
     validated.DEVSMS_BASE_URL = config.DEVSMS_BASE_URL;
   }
 
+  if (typeof config.SMS_MODE === 'string') {
+    validated.SMS_MODE = config.SMS_MODE;
+  }
+
+  if (typeof config.SMS_PROVIDER === 'string') {
+    validated.SMS_PROVIDER = config.SMS_PROVIDER;
+  }
+
+  if (typeof config.SMS_ALLOW_LOCAL_SEND === 'string') {
+    validated.SMS_ALLOW_LOCAL_SEND = config.SMS_ALLOW_LOCAL_SEND;
+  }
+
   if (typeof config.DEVSMS_TOKEN === 'string') {
     validated.DEVSMS_TOKEN = config.DEVSMS_TOKEN;
   }
@@ -123,6 +138,30 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (typeof config.DEVSMS_SERVICE_NAME === 'string') {
     validated.DEVSMS_SERVICE_NAME = config.DEVSMS_SERVICE_NAME;
+  }
+
+  if (
+    validated.NODE_ENV === 'production' &&
+    validated.SMS_MODE === 'DEVSMS' &&
+    (!validated.DEVSMS_TOKEN || validated.DEVSMS_TOKEN.trim().length === 0)
+  ) {
+    throw new Error('DEVSMS_TOKEN is required when SMS_MODE=DEVSMS in production');
+  }
+
+  if (validated.NODE_ENV === 'production') {
+    if (!validated.ADMIN_PIN || validated.ADMIN_PIN.trim().length < 6) {
+      throw new Error('ADMIN_PIN with at least 6 characters is required in production');
+    }
+
+    if (
+      !validated.ADMIN_SESSION_SECRET ||
+      validated.ADMIN_SESSION_SECRET.length < 32 ||
+      validated.ADMIN_SESSION_SECRET === 'change-this-long-random-secret-before-production'
+    ) {
+      throw new Error(
+        'ADMIN_SESSION_SECRET with at least 32 characters is required in production',
+      );
+    }
   }
 
   return validated;
