@@ -42,6 +42,10 @@ const text = {
     smsSend: 'SMS kod yuborish',
     smsVerify: 'Tasdiqlash',
     smsRequired: 'SMS kodni tasdiqlang',
+    smsInvalid: "SMS kod noto'g'ri",
+    smsExpired: 'SMS kod muddati tugagan. Yangi kod yuboring.',
+    smsTooMany: "Juda ko'p noto'g'ri urinish. Birozdan keyin qayta urinib ko'ring.",
+    smsSendFailed: 'SMS yuborilmadi. Qayta urinib ko‘ring yoki operatorga murojaat qiling.',
     terms: 'Saqlash shartlari',
     termsIntro: 'Davom etish uchun saqlash shartlari va taqiqlarni tasdiqlang.',
     termsRule1: 'Maksimal saqlash muddati 24 soat.',
@@ -98,6 +102,10 @@ const text = {
     smsSend: 'Отправить SMS',
     smsVerify: 'Подтвердить',
     smsRequired: 'Подтвердите SMS код',
+    smsInvalid: 'Неверный SMS код',
+    smsExpired: 'Срок SMS кода истек. Отправьте новый код.',
+    smsTooMany: 'Слишком много неверных попыток. Попробуйте позже.',
+    smsSendFailed: 'Не удалось отправить SMS. Попробуйте еще раз или обратитесь к оператору.',
     terms: 'Условия хранения',
     termsIntro: 'Подтвердите условия хранения и ограничения, чтобы продолжить.',
     termsRule1: 'Максимальный срок хранения - 24 часа.',
@@ -154,6 +162,10 @@ const text = {
     smsSend: 'Send SMS code',
     smsVerify: 'Verify',
     smsRequired: 'Verify the SMS code',
+    smsInvalid: 'Invalid SMS code',
+    smsExpired: 'SMS code expired. Send a new code.',
+    smsTooMany: 'Too many invalid attempts. Try again later.',
+    smsSendFailed: 'SMS could not be sent. Try again or contact an operator.',
     terms: 'Storage terms',
     termsIntro: 'Confirm the storage terms and restrictions to continue.',
     termsRule1: 'Maximum storage duration is 24 hours.',
@@ -217,6 +229,25 @@ function translateAccessReason(reason: string | undefined, labels: TerminalCopy)
   };
 
   return dictionary[reason] ?? reason;
+}
+
+function translateTerminalError(error: unknown, labels: TerminalCopy, fallback: string) {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  const dictionary: Record<string, string> = {
+    'Invalid SMS code.': labels.smsInvalid,
+    'SMS code expired. Request a new code.': labels.smsExpired,
+    'SMS verification is missing or expired': labels.smsExpired,
+    'Too many invalid SMS code attempts.': labels.smsTooMany,
+    'Too many SMS requests. Try again later.': labels.smsTooMany,
+    'SMS delivery failed. Check SMS provider account status and approved message templates.':
+      labels.smsSendFailed,
+    'Locker API request failed': fallback,
+  };
+
+  return dictionary[error.message] ?? error.message;
 }
 
 const sizes: Array<{
@@ -457,7 +488,7 @@ export function CustomerTerminal() {
       setStep('success');
       await refetch();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Payment failed');
+      setError(translateTerminalError(requestError, t, 'Payment failed'));
       setStep('locker');
     } finally {
       setIsPaying(false);
@@ -481,7 +512,7 @@ export function CustomerTerminal() {
       setSmsDevCode(result.devCode ?? null);
       setStep('sms');
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'SMS failed');
+      setError(translateTerminalError(requestError, t, t.smsSendFailed));
     } finally {
       setIsSendingSms(false);
     }
@@ -501,7 +532,7 @@ export function CustomerTerminal() {
       setSmsToken(result.token);
       setStep('terms');
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'SMS failed');
+      setError(translateTerminalError(requestError, t, t.smsSendFailed));
     } finally {
       setIsVerifyingSms(false);
     }
