@@ -18,6 +18,8 @@ interface EnvironmentVariables {
   DEVSMS_TOKEN?: string;
   DEVSMS_SENDER?: string;
   DEVSMS_TYPE?: string;
+  DEVSMS_TEMPLATE_TYPE?: string;
+  DEVSMS_SERVICE_NAME?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {
@@ -113,6 +115,14 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (typeof config.DEVSMS_TYPE === 'string') {
     validated.DEVSMS_TYPE = config.DEVSMS_TYPE;
+  }
+
+  if (typeof config.DEVSMS_TEMPLATE_TYPE === 'string') {
+    validated.DEVSMS_TEMPLATE_TYPE = config.DEVSMS_TEMPLATE_TYPE;
+  }
+
+  if (typeof config.DEVSMS_SERVICE_NAME === 'string') {
+    validated.DEVSMS_SERVICE_NAME = config.DEVSMS_SERVICE_NAME;
   }
 
   return validated;

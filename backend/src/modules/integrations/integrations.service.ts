@@ -27,6 +27,7 @@ type EskizSendResponse = {
 type DevSmsSendResponse = {
   success?: boolean;
   message?: string;
+  error?: string;
   data?: {
     sms_id?: number;
     request_id?: string;
@@ -537,18 +538,25 @@ export class IntegrationsService {
 
   private async sendDevSms(phone: string, message: string) {
     const baseUrl = process.env.DEVSMS_BASE_URL ?? 'https://devsms.uz/api';
+    const type = process.env.DEVSMS_TYPE ?? 'eskiz';
+    const payload =
+      type === 'universal_otp'
+        ? this.buildDevSmsUniversalOtpPayload(phone, message)
+        : {
+            phone: this.normalizePhone(phone),
+            message,
+            from:
+              process.env.DEVSMS_SENDER ?? process.env.ESKIZ_SENDER ?? '4546',
+            type,
+          };
+
     const response = await fetch(`${baseUrl.replace(/\/$/, '')}/send_sms.php`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.DEVSMS_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        phone: this.normalizePhone(phone),
-        message,
-        from: process.env.DEVSMS_SENDER ?? process.env.ESKIZ_SENDER ?? '4546',
-        type: process.env.DEVSMS_TYPE ?? 'eskiz',
-      }),
+      body: JSON.stringify(payload),
     });
 
     const body = (await response
@@ -557,11 +565,33 @@ export class IntegrationsService {
 
     if (!response.ok || body.success === false) {
       throw new UnauthorizedException(
-        body.message ?? `DevSMS failed with ${response.status}`,
+        body.error ?? body.message ?? `DevSMS failed with ${response.status}`,
       );
     }
 
     return body;
+  }
+
+  private buildDevSmsUniversalOtpPayload(phone: string, message: string) {
+    const otpCode = this.extractOtpCode(message);
+
+    if (!otpCode) {
+      throw new UnauthorizedException(
+        'DevSMS universal_otp requires a 4-8 digit OTP code in the SMS message.',
+      );
+    }
+
+    return {
+      phone: this.normalizePhone(phone),
+      type: 'universal_otp',
+      template_type: Number(process.env.DEVSMS_TEMPLATE_TYPE ?? 1),
+      service_name: process.env.DEVSMS_SERVICE_NAME ?? 'City Mall',
+      otp_code: otpCode,
+    };
+  }
+
+  private extractOtpCode(message: string) {
+    return message.match(/\b\d{4,8}\b/)?.[0] ?? null;
   }
 
   private async sendEskizSms(phone: string, message: string) {

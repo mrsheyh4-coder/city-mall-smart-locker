@@ -445,13 +445,16 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
       this.buildSmsAuthMessage(code),
     );
 
-    if (!sms.queued && (process.env.SMS_MODE ?? 'MOCK') === 'ESKIZ') {
+    if (
+      !sms.queued &&
+      ['ESKIZ', 'DEVSMS'].includes(process.env.SMS_MODE ?? 'MOCK')
+    ) {
       const error =
         'error' in sms && typeof sms.error === 'string' ? sms.error : undefined;
 
       throw new BadRequestException(
         error ??
-          'SMS delivery failed. Check Eskiz account status and approved message templates.',
+          'SMS delivery failed. Check SMS provider account status and approved message templates.',
       );
     }
 
