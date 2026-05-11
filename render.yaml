@@ -3,9 +3,8 @@ services:
     name: city-mall-smart-locker
     runtime: static
     plan: free
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: .next-build
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/.next-build
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://city-mall-smart-locker-api.onrender.com/api
@@ -32,7 +31,7 @@ services:
       - key: ADMIN_PIN
         sync: false
       - key: ADMIN_SESSION_SECRET
-        sync: false
+        generateValue: true
       - key: PAYMENT_MODE
         value: MOCK
       - key: SMS_MODE
