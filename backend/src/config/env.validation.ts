@@ -149,8 +149,8 @@ export function validateEnvironment(config: Record<string, unknown>) {
   }
 
   if (validated.NODE_ENV === 'production') {
-    if (!validated.ADMIN_PIN || validated.ADMIN_PIN.trim().length < 6) {
-      throw new Error('ADMIN_PIN with at least 6 characters is required in production');
+    if (!validated.ADMIN_PIN || validated.ADMIN_PIN.trim().length === 0) {
+      throw new Error('ADMIN_PIN is required in production');
     }
 
     if (
