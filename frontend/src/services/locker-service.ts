@@ -16,6 +16,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const API_HEADERS = {
   'X-API-Version': '1',
 };
+const SMS_REQUEST_TIMEOUT_MS = 8000;
 const ADMIN_TOKEN_KEY = 'city-mall-admin-token';
 const DEMO_LOCKERS_KEY = 'city-mall-demo-lockers';
 const DEMO_REVENUE_KEY = 'city-mall-demo-revenue';
@@ -218,41 +219,17 @@ export async function createBooking(input: {
   termsAccepted: boolean;
   smsVerificationToken?: string;
 }): Promise<BookingResponse> {
-  try {
-    const response = await fetch(`${API_URL}/booking/create`, {
-      method: 'POST',
-      headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
+  const response = await fetch(`${API_URL}/booking/create`, {
+    method: 'POST',
+    headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 
-    if (!response.ok) {
-      throw new Error(await getApiErrorMessage(response));
-    }
-
-    return response.json();
-  } catch (error) {
-    if (!isNetworkError(error)) {
-      throw error;
-    }
-
-    const payment = await simulateLocalDemoPayment(input.lockerId, input.durationMinutes);
-
-    return {
-      data: payment.data,
-      booking: {
-        id: `demo-booking-${input.lockerId}-${Date.now()}`,
-        lockerId: payment.data.id,
-        phone: input.phone,
-      customerName: input.customerName,
-        durationMinutes: input.durationMinutes,
-        status: 'ACTIVE',
-        startTime: payment.session.startTime,
-        expiresAt: payment.session.endTime ?? new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      },
-      access: payment.access,
-    };
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response));
   }
+
+  return response.json();
 }
 
 export async function requestSmsAuth(phone: string): Promise<{
@@ -263,11 +240,11 @@ export async function requestSmsAuth(phone: string): Promise<{
   assertProductionApiUrl();
 
   try {
-    const response = await fetch(`${API_URL}/sms/auth/request`, {
+    const response = await fetchWithTimeout(`${API_URL}/sms/auth/request`, {
       method: 'POST',
       headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone }),
-    });
+    }, SMS_REQUEST_TIMEOUT_MS);
 
     if (!response.ok) {
       throw new Error(await getApiErrorMessage(response));
@@ -296,11 +273,11 @@ export async function verifySmsAuth(phone: string, code: string): Promise<{
   assertProductionApiUrl();
 
   try {
-    const response = await fetch(`${API_URL}/sms/auth/verify`, {
+    const response = await fetchWithTimeout(`${API_URL}/sms/auth/verify`, {
       method: 'POST',
       headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, code }),
-    });
+    }, SMS_REQUEST_TIMEOUT_MS);
 
     if (!response.ok) {
       throw new Error(await getApiErrorMessage(response));
@@ -325,26 +302,17 @@ export async function verifySmsAuth(phone: string, code: string): Promise<{
 }
 
 export async function mockPayment(bookingId: string): Promise<DemoPaymentResponse> {
-  try {
-    const response = await fetch(`${API_URL}/payment/mock`, {
-      method: 'POST',
-      headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId }),
-    });
+  const response = await fetch(`${API_URL}/payment/mock`, {
+    method: 'POST',
+    headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookingId }),
+  });
 
-    if (!response.ok) {
-      throw new Error(await getApiErrorMessage(response));
-    }
-
-    return response.json();
-  } catch (error) {
-    if (!isNetworkError(error)) {
-      throw error;
-    }
-
-    const lockerId = Number(bookingId.match(/\d+/)?.[0] ?? 1);
-    return simulateLocalDemoPayment(lockerId, 120);
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response));
   }
+
+  return response.json();
 }
 
 export async function simulateDemoPayment(
@@ -778,11 +746,33 @@ async function getApiErrorMessage(response: Response) {
 }
 
 function isNetworkError(error: unknown) {
-  return error instanceof TypeError;
+  return error instanceof TypeError || (error instanceof Error && error.name === 'AbortError');
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function assertProductionApiUrl() {
   if (!IS_PRODUCTION) {
+    return;
+  }
+
+  const isLocalDemo =
+    typeof window !== 'undefined' &&
+    ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+  if (isLocalDemo) {
     return;
   }
 
@@ -1381,12 +1371,7 @@ function updateDemoLocker(
     updatedLocker = {
       ...locker,
       isOpen: command === 'open',
-      status: nextStatus ?? (locker.status === 'AVAILABLE' ? 'RESERVED' : locker.status),
-      pinCode: locker.pinCode ?? getDemoPin(locker.number),
-      qrCode: locker.qrCode ?? `CITY-MALL-DEMO-${locker.number}-${Date.now()}`,
-      bookingStartAt: locker.bookingStartAt ?? new Date().toISOString(),
-      bookingExpiresAt:
-        locker.bookingExpiresAt ?? new Date(Date.now() + 120 * 60_000).toISOString(),
+      status: nextStatus ?? locker.status,
       updatedAt: new Date().toISOString(),
     };
 

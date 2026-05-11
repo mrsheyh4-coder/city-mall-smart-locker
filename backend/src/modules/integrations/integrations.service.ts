@@ -405,6 +405,46 @@ export class IntegrationsService {
     };
   }
 
+  async syncGoogleSheetsTariffsFromDatabase() {
+    if (!this.isGoogleSheetsEnabled()) {
+      return { skipped: true, reason: 'GOOGLE_SHEETS_MODE is not ENABLED' };
+    }
+
+    this.assertGoogleSheetsReady();
+
+    const tariffs = await this.prisma.tariff.findMany({
+      orderBy: [
+        { lockerSize: 'asc' },
+        { durationMinutes: 'asc' },
+        { price: 'asc' },
+      ],
+    });
+    const rows = [
+      ['Name', 'Size', 'Duration Minutes', 'Price', 'Currency', 'Active'],
+      ...tariffs.map((tariff) => [
+        tariff.name,
+        tariff.lockerSize,
+        tariff.durationMinutes,
+        tariff.price,
+        tariff.currency,
+        tariff.isActive ? 'TRUE' : 'FALSE',
+      ]),
+    ];
+    const sheet = process.env.GOOGLE_SHEETS_TARIFFS_SHEET ?? 'Tariffs';
+
+    await this.replaceGoogleSheetRows(sheet, rows, 'A:F');
+    await this.createIntegrationLog(
+      'google-sheets',
+      `Google Sheets tariff export completed: ${tariffs.length} tariff(s) synced`,
+    );
+
+    return {
+      synced: tariffs.length,
+      spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+      sheet,
+    };
+  }
+
   async registerCctvEvent(lockerId: string, event: string, cameraId?: string) {
     await this.createIntegrationLog(
       'cctv',
@@ -543,6 +583,49 @@ export class IntegrationsService {
     );
 
     await this.assertGoogleResponse(response, 'Google Sheets append failed');
+  }
+
+  private async replaceGoogleSheetRows(
+    sheetName: string,
+    rows: unknown[][],
+    columns = 'A:Z',
+  ) {
+    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    const token = await this.getGoogleAccessToken();
+    const clearRange = encodeURIComponent(`${sheetName}!${columns}`);
+    const updateRange = encodeURIComponent(`${sheetName}!A1`);
+
+    const clearResponse = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${clearRange}:clear`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      },
+    );
+    await this.assertGoogleResponse(
+      clearResponse,
+      'Google Sheets clear failed',
+    );
+
+    const updateResponse = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${updateRange}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ values: rows }),
+      },
+    );
+    await this.assertGoogleResponse(
+      updateResponse,
+      'Google Sheets update failed',
+    );
   }
 
   private async getGoogleSheetRows(sheetName: string) {

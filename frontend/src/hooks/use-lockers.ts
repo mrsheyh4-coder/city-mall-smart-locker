@@ -140,8 +140,6 @@ export function useLockers() {
           ? {
               ...item,
               isOpen: !item.isOpen,
-              status: item.status === 'AVAILABLE' ? 'RESERVED' : item.status,
-              pinCode: item.pinCode ?? String(100000 + ((item.number * 137) % 900000)),
             }
           : item,
       ),

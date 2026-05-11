@@ -11,6 +11,9 @@ const commandTokens = [
   'next\\dist\\server\\lib\\start-server',
   '@nestjs\\cli',
   'backend\\dist\\main',
+  'dist\\main',
+  'node dist/main',
+  'serve-frontend-static.js',
 ];
 
 if (process.platform !== 'win32') {
@@ -43,8 +46,7 @@ $portPids = @(3000, 4000) |
 
 $portItems = Get-CimInstance Win32_Process -Filter "name = 'node.exe'" |
   Where-Object {
-    $portPids -contains $_.ProcessId -and
-    $_.CommandLine -like '*${projectToken}*'
+    $portPids -contains $_.ProcessId
   }
 
 $items = @($processItems) + @($portItems) |

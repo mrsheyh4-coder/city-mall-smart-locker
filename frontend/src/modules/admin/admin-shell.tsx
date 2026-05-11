@@ -633,72 +633,94 @@ export function AdminShell() {
   }
 
   return (
-    <main className="luxury-bg min-h-screen text-[#ffffff]">
-      <header className="sticky top-0 z-40 border-b border-[#ffffff]/10 bg-[#1a212f]/86 px-5 py-4 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+    <main className="luxury-bg min-h-screen overflow-hidden text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(179,128,110,0.20),transparent_30%),radial-gradient(circle_at_82%_0%,rgba(255,255,255,0.10),transparent_28%)]" />
+      <section className="relative mx-auto flex w-full max-w-7xl flex-col gap-7 px-5 py-6 sm:px-8 lg:px-10">
+        <header className="luxury-card-strong flex flex-col gap-6 rounded-[2rem] p-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-semibold text-[#b3806e]">Tashkent City Mall</p>
-            <h1 className="text-xl font-semibold">{t.title}</h1>
+            <div className="inline-flex rounded-full border border-[#b3806e]/35 bg-[#b3806e]/12 px-4 py-2 text-xs font-semibold uppercase text-white shadow-[0_0_28px_rgba(179,128,110,0.20)]">
+              City Mall Smart Yashik MVP
+            </div>
+            <h1 className="mt-5 max-w-3xl text-4xl font-semibold tracking-normal text-white sm:text-5xl">
+              {t.title}
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/70">
+              API tayyor admin boshqaruv, realtime monitoring, buyurtma, tarif va PIN/QR nazorati.
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="flex rounded-[1.35rem] border border-[#ffffff]/10 bg-[#ffffff]/[0.06] p-1">
+          <div className="rounded-[1.5rem] border border-[#b3806e]/25 bg-[#1a212f]/55 p-4 text-sm text-white/72">
+            <div className="mb-4 grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-white/[0.055] p-1">
               {languageOptions.map((item) => (
                 <button
                   key={item.code}
                   type="button"
                   onClick={() => changeLanguage(item.code)}
-                  className={`rounded-[1.1rem] px-3 py-2 text-xs font-bold transition ${
+                  className={`min-h-9 rounded-full px-3 text-xs font-semibold transition ${
                     language === item.code
-                      ? 'bg-[#b3806e] text-[#ffffff]'
-                      : 'text-[#ffffff]/62 hover:text-[#ffffff]'
+                      ? 'bg-[#b3806e] text-white'
+                      : 'text-white/70 hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   {item.label}
                 </button>
               ))}
             </div>
-            <Link href="/terminal">
-              <Button variant="secondary">
-                <DoorOpen size={17} />
-                {t.terminal}
+            <p className="font-semibold text-white">Tizim rejimi</p>
+            <p className="mt-1">Admin panel faol</p>
+            <p className="mt-3 text-xs text-white/65">
+              Baza holati: {isLoading ? 'sinxronlanmoqda' : 'jonli'}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Link href="/terminal">
+                <Button variant="secondary" className="w-full">
+                  <DoorOpen size={17} />
+                  {t.terminal}
+                </Button>
+              </Link>
+              <Button
+                variant="ghost"
+                className="text-white/70 hover:bg-white/10 hover:text-white"
+                onClick={() => {
+                  logout();
+                  router.replace('/login');
+                }}
+              >
+                <LogOut size={17} />
+                {t.logout}
               </Button>
-            </Link>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                logout();
-                router.replace('/login');
-              }}
-            >
-              <LogOut size={17} />
-              {t.logout}
-            </Button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <section className="mx-auto max-w-7xl px-5 py-6 lg:px-10">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <Metric label={t.totalLockers} value={summary?.total ?? 0} tone="bronze" />
+          <Metric label={t.activeLockers} value={summary?.active ?? 0} tone="glass" />
+          <Metric label={t.occupancy} value={summary?.occupiedPercentage ?? 0} suffix="%" tone="solid" />
+          <Metric label={t.expired} value={summary?.expired ?? 0} tone="light" />
+          <Metric label={t.dailyRevenue} value={summary?.demoRevenue ?? 0} suffix=" UZS" tone="bronze" compact />
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           {adminSections.map((section) => (
             <button
               key={section.id}
               type="button"
               onClick={() => setActiveSection(section.id)}
-              className={`rounded-[1.35rem] border p-4 text-left transition hover:-translate-y-0.5 ${
+              className={`min-h-[116px] rounded-[1.65rem] border p-4 text-left transition duration-300 hover:-translate-y-1 ${
                 activeSection === section.id
-                  ? 'border-[#b3806e]/70 bg-[#b3806e]/18 text-[#ffffff] shadow-[0_16px_55px_rgba(179,128,110,0.16)]'
-                  : 'border-[#ffffff]/10 bg-[#ffffff]/[0.055] text-[#ffffff]/72 hover:border-[#b3806e]/45'
+                  ? 'border-[#b3806e]/60 bg-[#b3806e]/18 text-white shadow-[0_24px_80px_rgba(179,128,110,0.18)]'
+                  : 'luxury-card text-white/72 hover:border-[#b3806e]/50 hover:bg-white/[0.09]'
               }`}
             >
               <span className="flex items-center gap-2 text-[#b3806e]">{section.icon}</span>
               <span className="mt-3 block text-sm font-bold">{section.label}</span>
-              <span className="mt-1 block text-xs text-[#ffffff]/48">{section.description}</span>
+              <span className="mt-1 block text-xs font-semibold text-white/48">{section.description}</span>
             </button>
           ))}
         </div>
 
         {notice ? (
-          <div className="mt-4 rounded-2xl border border-[#b3806e]/35 bg-[#b3806e]/12 px-4 py-3 text-sm font-semibold text-[#ffffff]">
+          <div className="mt-4 rounded-2xl border border-[#C8A96B]/35 bg-[#C8A96B]/12 px-4 py-3 text-sm font-semibold text-white">
             {notice}
           </div>
         ) : null}
@@ -725,15 +747,15 @@ export function AdminShell() {
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-          <Card className="luxury-card-strong">
+          <Card className="border-[#C8A96B]/18 bg-[#3d424e]/78 shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
             <div className="flex items-center gap-3">
-              <Bell className="text-[#b3806e]" />
+              <Bell className="text-[#C8A96B]" />
               <h2 className="text-xl font-semibold">{t.staffAlerts}</h2>
             </div>
             <div className="mt-5 grid gap-3">
               {visibleNotifications.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-3">
-                  <p className={`text-xs font-bold ${item.level === 'ERROR' ? 'text-[#ffffff]' : 'text-[#b3806e]'}`}>
+                  <p className={`text-xs font-bold ${item.level === 'ERROR' ? 'text-[#ffffff]' : 'text-[#C8A96B]'}`}>
                     {item.level} | {item.title}
                   </p>
                   <p className="mt-1 text-sm text-[#ffffff]/70">{item.message}</p>
@@ -746,7 +768,7 @@ export function AdminShell() {
             </div>
           </Card>
 
-          <Card className="luxury-card-strong">
+          <Card className="border-[#C8A96B]/18 bg-[#3d424e]/78 shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold">{t.financialReports}</h2>
@@ -789,13 +811,13 @@ export function AdminShell() {
         {activeSection === 'overview' || activeSection === 'tariffs' ? (
         <div className="mt-6 grid gap-6 xl:grid-cols-1">
           {activeSection === 'overview' ? (
-          <Card className="luxury-card-strong">
+          <Card className="border-[#C8A96B]/18 bg-[#3d424e]/78 shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold">{t.revenueAnalytics}</h2>
                 <p className="mt-1 text-sm text-[#ffffff]/58">{t.revenueNote}</p>
               </div>
-              <BarChart3 className="text-[#b3806e]" />
+              <BarChart3 className="text-[#C8A96B]" />
             </div>
             <div className="mt-6 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -813,7 +835,7 @@ export function AdminShell() {
                     }}
                     labelStyle={{ color: '#ffffff' }}
                   />
-                  <Bar dataKey="amount" fill="#b3806e" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="amount" fill="#C8A96B" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -821,7 +843,7 @@ export function AdminShell() {
           ) : null}
 
           {activeSection === 'tariffs' ? (
-          <Card className="luxury-card-strong">
+          <Card className="border-[#C8A96B]/18 bg-[#3d424e]/78 shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">{t.tariffs}</h2>
               <Button onClick={submitTariff}>
@@ -881,13 +903,13 @@ export function AdminShell() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="font-semibold text-[#b3806e]">
+                    <p className="font-semibold text-[#C8A96B]">
                       {tariff.price.toLocaleString('uz-UZ')} {tariff.currency}
                     </p>
-                    <button type="button" onClick={() => startEditTariff(tariff)} className="rounded-xl border border-[#ffffff]/10 p-2 text-[#ffffff]/75 transition hover:border-[#b3806e]/45">
+                    <button type="button" onClick={() => startEditTariff(tariff)} className="rounded-xl border border-[#ffffff]/10 p-2 text-[#ffffff]/75 transition hover:border-[#C8A96B]/45">
                       <Pencil size={15} />
                     </button>
-                    <button type="button" onClick={() => runAdminAction('Tariff o‘chirish', () => deleteAdminTariff(tariff.id))} className="rounded-xl border border-[#ffffff]/10 p-2 text-[#ffffff]/75 transition hover:border-[#b3806e]/45">
+                    <button type="button" onClick={() => runAdminAction('Tariff o‘chirish', () => deleteAdminTariff(tariff.id))} className="rounded-xl border border-[#ffffff]/10 p-2 text-[#ffffff]/75 transition hover:border-[#C8A96B]/45">
                       <Trash2 size={15} />
                     </button>
                   </div>
@@ -902,7 +924,7 @@ export function AdminShell() {
         {activeSection === 'bookings' || activeSection === 'lockers' || activeSection === 'logs' ? (
         <div className="mt-6 grid gap-6 xl:grid-cols-1">
           {activeSection === 'bookings' ? (
-          <Card className="luxury-card-strong">
+          <Card className="border-[#C8A96B]/18 bg-[#3d424e]/78 shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">{t.bookingManagement}</h2>
               <SearchBox value={bookingSearch} onChange={setBookingSearch} placeholder={t.searchBookings} />
@@ -915,8 +937,8 @@ export function AdminShell() {
                   onClick={() => setBookingStatus(status)}
                   className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                     bookingStatus === status
-                      ? 'border-[#b3806e] bg-[#b3806e] text-[#ffffff]'
-                      : 'border-[#ffffff]/10 bg-[#ffffff]/[0.05] text-[#ffffff]/70 hover:border-[#b3806e]/45'
+                      ? 'border-[#C8A96B] bg-[#C8A96B] text-[#171b26]'
+                      : 'border-[#ffffff]/10 bg-[#ffffff]/[0.05] text-[#ffffff]/70 hover:border-[#C8A96B]/45'
                   }`}
                 >
                   {getBookingStatusLabel(status, t)}
@@ -925,12 +947,12 @@ export function AdminShell() {
             </div>
             <div className="mt-5 grid max-h-[32rem] gap-3 overflow-y-auto">
               {pagedBookings.map((booking) => (
-                <div key={booking.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-4 transition hover:border-[#b3806e]/45">
+                <div key={booking.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-4 transition hover:border-[#C8A96B]/45">
                   <div className="flex items-center justify-between">
                     <p className="font-semibold">
                       {booking.locker ? formatLockerNumber(booking.locker.number) : 'Yashik'}
                     </p>
-                    <p className="rounded-full border border-[#b3806e]/35 px-2.5 py-1 text-xs font-bold text-[#b3806e]">
+                    <p className="rounded-full border border-[#C8A96B]/35 px-2.5 py-1 text-xs font-bold text-[#C8A96B]">
                       {booking.status}
                     </p>
                   </div>
@@ -939,13 +961,13 @@ export function AdminShell() {
                     {t.expires} {new Date(booking.expiresAt).toLocaleString()}
                   </p>
                   <div className="mt-3 grid grid-cols-3 gap-2">
-                    <button type="button" onClick={() => runAdminAction('Booking extend', () => extendAdminBooking(booking.id, 60))} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#b3806e]/45">
+                    <button type="button" onClick={() => runAdminAction('Booking extend', () => extendAdminBooking(booking.id, 60))} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#C8A96B]/45">
                       {t.extend}
                     </button>
-                    <button type="button" onClick={() => runAdminAction('Booking complete', () => completeAdminBooking(booking.id))} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#b3806e]/45">
+                    <button type="button" onClick={() => runAdminAction('Booking complete', () => completeAdminBooking(booking.id))} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#C8A96B]/45">
                       {t.complete}
                     </button>
-                    <button type="button" onClick={() => void cancelOrReactivateBooking(booking)} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#b3806e]/45">
+                    <button type="button" onClick={() => void cancelOrReactivateBooking(booking)} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#C8A96B]/45">
                       {t.cancel}
                     </button>
                   </div>
@@ -960,7 +982,7 @@ export function AdminShell() {
           ) : null}
 
           {activeSection === 'lockers' ? (
-          <Card className="luxury-card-strong">
+          <Card className="rounded-[24px] border-[#C8A96B]/20 bg-[#484d59]/82 p-5 shadow-[0_36px_110px_rgba(0,0,0,0.34)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">{t.lockerMonitoring}</h2>
               <SearchBox value={lockerSearch} onChange={setLockerSearch} placeholder={t.searchLocker} />
@@ -973,25 +995,69 @@ export function AdminShell() {
                   onClick={() => setLockerStatus(status)}
                   className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                     lockerStatus === status
-                      ? 'border-[#b3806e] bg-[#b3806e] text-[#ffffff]'
-                      : 'border-[#ffffff]/10 bg-[#ffffff]/[0.05] text-[#ffffff]/70 hover:border-[#b3806e]/45'
+                      ? 'border-[#C8A96B] bg-[#C8A96B] text-[#171b26]'
+                      : 'border-white/10 bg-white/[0.08] text-white/70 hover:border-[#C8A96B]/45'
                   }`}
                 >
                   {getLockerStatusLabel(status, t)}
                 </button>
               ))}
             </div>
-            <div className="mt-5 grid grid-cols-3 gap-2">
+            <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {pagedLockers.map((locker) => (
                 <button
                   key={locker.id}
                   type="button"
                   onClick={() => setSelectedLocker(locker)}
-                  className={`rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 ${statusClass(locker.status)}`}
+                  className={`group relative overflow-hidden rounded-[1.85rem] border p-5 text-left transition duration-300 hover:-translate-y-1 ${statusClass(locker.status)}`}
                 >
-                  <p className="font-semibold">{formatLockerNumber(locker.number)}</p>
-                  <p className="mt-1 text-xs text-[#ffffff]/70">{getLockerStatusLabel(locker.status, t)}</p>
-                  <p className="mt-2 text-xs text-[#ffffff]/45">{locker.size}</p>
+                  <div className="bronze-line absolute inset-x-8 top-0 h-px opacity-0 transition group-hover:opacity-100" />
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-medium uppercase text-white/42">Smart yashik</p>
+                      <p className="mt-2 text-3xl font-semibold text-white">{formatLockerNumber(locker.number)}</p>
+                      <p className="mt-1 text-xs font-semibold uppercase text-white/70">
+                        Yashik hajmi: {getLockerSizeLabel(locker.size)}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+                      {getLockerStatusLabel(locker.status, t)}
+                    </span>
+                  </div>
+
+                  <div className="mt-7 flex items-center justify-center">
+                    <div
+                      className={`relative grid h-24 w-20 place-items-center rounded-2xl border transition duration-500 ${
+                        locker.isOpen
+                          ? 'rotate-2 border-[#b3806e]/70 bg-[#b3806e]/15 shadow-[0_0_38px_rgba(179,128,110,0.34)]'
+                          : 'border-white/10 bg-[#1a212f]/80'
+                      }`}
+                    >
+                      <div className="absolute inset-y-4 right-3 w-1 rounded-full bg-[#b3806e]/80 shadow-[0_0_18px_rgba(179,128,110,0.65)]" />
+                      <div className={`h-5 w-5 rounded-full border border-white/20 transition ${locker.isOpen ? 'bg-[#b3806e]' : 'bg-white/10'}`} />
+                    </div>
+                  </div>
+
+                  <div className="mt-7 grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-2xl border border-white/8 bg-[#1a212f]/55 p-3">
+                      <p className="text-white/42">{t.doorState}</p>
+                      <p className="mt-1 font-semibold text-white">{locker.isOpen ? t.doorOpen : t.doorClosed}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-[#1a212f]/55 p-3">
+                      <p className="text-white/42">PIN</p>
+                      <p className="mt-1 font-semibold text-white">{locker.pinCode ?? 'Tayyor'}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-[#1a212f]/55 p-3">
+                      <p className="text-white/42">Mijoz</p>
+                      <p className="mt-1 truncate font-semibold text-white">{locker.customerName ?? '-'}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-[#1a212f]/55 p-3">
+                      <p className="text-white/42">{t.expires}</p>
+                      <p className="mt-1 font-semibold text-white">
+                        {locker.bookingExpiresAt ? new Date(locker.bookingExpiresAt).toLocaleTimeString() : '-'}
+                      </p>
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
@@ -1000,7 +1066,7 @@ export function AdminShell() {
           ) : null}
 
           {activeSection === 'logs' ? (
-          <Card className="luxury-card-strong">
+          <Card className="border-[#C8A96B]/18 bg-[#3d424e]/78 shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">{t.logsSystem}</h2>
               <div className="flex gap-2">
@@ -1011,8 +1077,8 @@ export function AdminShell() {
                     onClick={() => setLogFilter(level)}
                     className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                       logFilter === level
-                        ? 'border-[#b3806e] bg-[#b3806e] text-[#ffffff]'
-                        : 'border-[#ffffff]/10 bg-[#ffffff]/[0.05] text-[#ffffff]/70 hover:border-[#b3806e]/45'
+                        ? 'border-[#C8A96B] bg-[#C8A96B] text-[#171b26]'
+                        : 'border-[#ffffff]/10 bg-[#ffffff]/[0.05] text-[#ffffff]/70 hover:border-[#C8A96B]/45'
                     }`}
                   >
                     {level}
@@ -1023,7 +1089,7 @@ export function AdminShell() {
             <div className="mt-5 grid max-h-[32rem] gap-3 overflow-y-auto">
               {filteredLogs.map((log) => (
                 <div key={log.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-3">
-                  <p className="text-xs font-bold text-[#b3806e]">
+                  <p className="text-xs font-bold text-[#C8A96B]">
                     {log.level} | {log.source}
                   </p>
                   <p className="mt-1 text-sm text-[#ffffff]/72">{log.message}</p>
@@ -1038,7 +1104,7 @@ export function AdminShell() {
 
         {activeSection === 'access' ? (
         <>
-        <Card className="luxury-card-strong mt-6">
+        <Card className="mt-6 border-[#C8A96B]/18 bg-[#3d424e]/78 shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
           <div className="flex items-center gap-3">
             <KeyBadge />
             <h2 className="text-xl font-semibold">{t.accessManagement}</h2>
@@ -1048,15 +1114,15 @@ export function AdminShell() {
               <div key={accessCode.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-4">
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">{accessCode.locker ? formatLockerNumber(accessCode.locker.number) : t.lockerFallback}</p>
-                  <p className="text-xs font-bold text-[#b3806e]">{accessCode.usedAt ? t.revokedOrUsed : t.activeAccess}</p>
+                  <p className="text-xs font-bold text-[#C8A96B]">{accessCode.usedAt ? t.revokedOrUsed : t.activeAccess}</p>
                 </div>
                 <p className="mt-2 text-sm text-[#ffffff]/70">PIN: {accessCode.pinCode}</p>
                 <p className="mt-1 text-xs text-[#ffffff]/45">{t.expires} {new Date(accessCode.expiresAt).toLocaleString()}</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => runAdminAction('PIN/QR regenerate', () => regenerateAccessCode(accessCode.id))} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#b3806e]/45">
+                  <button type="button" onClick={() => runAdminAction('PIN/QR regenerate', () => regenerateAccessCode(accessCode.id))} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#C8A96B]/45">
                     {t.regenerate}
                   </button>
-                  <button type="button" onClick={() => runAdminAction('PIN/QR revoke', () => revokeAccessCode(accessCode.id))} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#b3806e]/45">
+                  <button type="button" onClick={() => runAdminAction('PIN/QR revoke', () => revokeAccessCode(accessCode.id))} className="rounded-xl border border-[#ffffff]/10 px-2 py-2 text-xs font-bold text-[#ffffff]/75 transition hover:border-[#C8A96B]/45">
                     {t.revoke}
                   </button>
                 </div>
@@ -1066,7 +1132,7 @@ export function AdminShell() {
               <div key={log.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-4">
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">{log.locker ? formatLockerNumber(log.locker.number) : t.lockerFallback}</p>
-                  <p className="text-xs font-bold text-[#b3806e]">{log.method} | {log.success ? t.accessOk : t.accessDenied}</p>
+                  <p className="text-xs font-bold text-[#C8A96B]">{log.method} | {log.success ? t.accessOk : t.accessDenied}</p>
                 </div>
                 <p className="mt-2 text-sm text-[#ffffff]/70">{translateAccessMessage(log.message, t)}</p>
                 <p className="mt-3 text-xs text-[#ffffff]/45">{new Date(log.createdAt).toLocaleString()}</p>
@@ -1078,17 +1144,17 @@ export function AdminShell() {
           </div>
         </Card>
 
-        <Card className="luxury-card-strong mt-6">
+        <Card className="mt-6 border-[#C8A96B]/18 bg-[#3d424e]/78 shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
           <div className="flex items-center gap-3">
-            <Users className="text-[#b3806e]" />
+            <Users className="text-[#C8A96B]" />
             <h2 className="text-xl font-semibold">{t.adminUsers}</h2>
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {(data?.admins ?? []).map((admin) => (
-              <div key={admin.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-4 transition hover:border-[#b3806e]/45">
+              <div key={admin.id} className="rounded-2xl border border-[#ffffff]/10 bg-[#ffffff]/[0.055] p-4 transition hover:border-[#C8A96B]/45">
                 <p className="font-semibold">{admin.name}</p>
                 <p className="mt-1 text-sm text-[#ffffff]/58">{admin.email}</p>
-                <p className="mt-3 text-xs font-bold text-[#b3806e]">{admin.role}</p>
+                <p className="mt-3 text-xs font-bold text-[#C8A96B]">{admin.role}</p>
               </div>
             ))}
           </div>
@@ -1108,13 +1174,13 @@ export function AdminShell() {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-bold uppercase text-[#b3806e]">{t.lockerDetails}</p>
+                <p className="text-sm font-bold uppercase text-[#C8A96B]">{t.lockerDetails}</p>
                 <h2 className="mt-2 text-3xl font-semibold">{formatLockerNumber(selectedLocker.number)}</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedLocker(null)}
-                className="rounded-full border border-[#ffffff]/10 px-4 py-2 text-sm font-bold text-[#ffffff]/70 transition hover:border-[#b3806e]/45 hover:text-[#ffffff]"
+                className="rounded-full border border-[#ffffff]/10 px-4 py-2 text-sm font-bold text-[#ffffff]/70 transition hover:border-[#C8A96B]/45 hover:text-[#ffffff]"
               >
                 {t.closeModal}
               </button>
@@ -1198,21 +1264,38 @@ function Metric({
   value,
   suffix,
   compact,
+  tone = 'glass',
 }: {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   label: string;
   value: number;
   suffix?: string;
   compact?: boolean;
+  tone?: 'bronze' | 'light' | 'glass' | 'solid';
 }) {
+  const toneClass = {
+    bronze: 'from-white/[0.10] to-[#b3806e]/[0.12] ring-[#b3806e]/28',
+    light: 'from-white/[0.11] to-white/[0.04] ring-white/18',
+    glass: 'from-white/[0.09] to-[#1a212f]/[0.18] ring-[#b3806e]/22',
+    solid: 'from-[#4b505b]/80 to-[#2b303b]/80 ring-white/12',
+  };
+
   return (
-    <Card className="group overflow-hidden">
-      <div className="text-[#b3806e] transition group-hover:scale-110">{icon}</div>
-      <p className="mt-4 text-sm text-[#ffffff]/58">{label}</p>
-      <p className={`${compact ? 'text-2xl' : 'text-3xl'} mt-1 font-semibold`}>
-        <AnimatedNumber value={value} />
-        {suffix}
-      </p>
+    <Card className={`group overflow-hidden bg-gradient-to-br ${toneClass[tone]} ring-1`}>
+      <div className="flex min-h-[6.25rem] flex-col justify-between">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-medium text-white/60">{label}</p>
+          {icon ? (
+            <div className="text-[#b3806e] transition group-hover:scale-110">{icon}</div>
+          ) : (
+            <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#b3806e] shadow-[0_0_22px_rgba(179,128,110,0.8)]" />
+          )}
+        </div>
+        <p className={`${compact ? 'text-3xl' : 'text-4xl'} font-semibold tracking-normal text-white`}>
+          <AnimatedNumber value={value} />
+          {suffix ? <span className="text-2xl text-white/70">{suffix}</span> : null}
+        </p>
+      </div>
     </Card>
   );
 }
@@ -1266,7 +1349,7 @@ function SearchBox({
 }) {
   return (
     <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-[#ffffff]/10 bg-[#1a212f]/55 px-3 text-sm text-[#ffffff]/65">
-      <Search size={16} className="text-[#b3806e]" />
+      <Search size={16} className="text-[#C8A96B]" />
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -1292,28 +1375,38 @@ function Pager({
 }) {
   return (
     <div className="mt-5 flex items-center justify-between text-sm text-[#ffffff]/60">
-      <button type="button" onClick={onPrev} className="rounded-full border border-[#ffffff]/10 px-3 py-1.5 transition hover:border-[#b3806e]/45">
+      <button type="button" onClick={onPrev} className="rounded-full border border-[#ffffff]/10 px-3 py-1.5 transition hover:border-[#C8A96B]/45">
         {labels.previous}
       </button>
       <span>
         {page} / {pages}
       </span>
-      <button type="button" onClick={onNext} className="rounded-full border border-[#ffffff]/10 px-3 py-1.5 transition hover:border-[#b3806e]/45">
+      <button type="button" onClick={onNext} className="rounded-full border border-[#ffffff]/10 px-3 py-1.5 transition hover:border-[#C8A96B]/45">
         {labels.next}
       </button>
     </div>
   );
 }
 
+function getLockerSizeLabel(size: LockerSize) {
+  const map = {
+    SMALL: 'KICHIK',
+    MEDIUM: "O'RTA",
+    LARGE: 'KATTA',
+  };
+
+  return map[size];
+}
+
 function statusClass(status: LockerStatus) {
   const base = 'bg-[#ffffff]/[0.055]';
 
   if (status === 'OCCUPIED') {
-    return 'border-[#b3806e]/70 bg-[#b3806e]/16 shadow-[0_0_24px_rgba(179,128,110,0.20)]';
+    return 'border-[#C8A96B]/70 bg-[#C8A96B]/16 shadow-[0_0_24px_rgba(200,169,107,0.20)]';
   }
 
   if (status === 'RESERVED') {
-    return 'border-[#b3806e]/45 bg-[#b3806e]/10';
+    return 'border-[#C8A96B]/45 bg-[#C8A96B]/10';
   }
 
   if (status === 'EXPIRED') {
@@ -1321,7 +1414,7 @@ function statusClass(status: LockerStatus) {
   }
 
   if (status === 'MAINTENANCE') {
-    return 'border-[#b3806e]/25 bg-[#1a212f]/65';
+    return 'border-[#C8A96B]/25 bg-[#1a212f]/65';
   }
 
   return `border-[#ffffff]/10 ${base}`;
@@ -1354,7 +1447,7 @@ function getBookingStatusLabel(status: 'ALL' | Booking['status'], labels: (typeo
 
 function KeyBadge() {
   return (
-    <div className="grid h-10 w-10 place-items-center rounded-2xl border border-[#b3806e]/35 bg-[#b3806e]/12 text-[#b3806e]">
+    <div className="grid h-10 w-10 place-items-center rounded-2xl border border-[#C8A96B]/35 bg-[#C8A96B]/12 text-[#C8A96B]">
       <ShieldCheck size={18} />
     </div>
   );

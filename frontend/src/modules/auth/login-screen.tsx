@@ -71,19 +71,19 @@ export function LoginScreen() {
   }, [router, user]);
 
   return (
-    <main className="luxury-bg grid min-h-screen place-items-center px-5 text-[#ffffff]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(179,128,110,0.24),transparent_34%)]" />
-      <Card className="relative w-full max-w-md p-7 shadow-[0_30px_90px_rgba(26,33,47,0.32)]">
+    <main className="premium-shell grid min-h-screen place-items-center px-5 text-[#0F0F0F]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(200,169,107,0.24),transparent_34%)]" />
+      <Card className="premium-card relative w-full max-w-md p-7 text-[#0F0F0F] shadow-[0_30px_90px_rgba(26,33,47,0.14)]">
         <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#b3806e] text-[#ffffff] shadow-[0_0_32px_rgba(179,128,110,0.35)]">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#C8A96B] text-[#0F0F0F] shadow-[0_0_32px_rgba(200,169,107,0.35)]">
             <Sparkles size={20} />
           </div>
           <div>
             <h1 className="text-2xl font-semibold">{t.title}</h1>
-            <p className="text-sm text-[#ffffff]/62">{t.subtitle}</p>
+            <p className="text-sm text-[#7A7A7A]">{t.subtitle}</p>
           </div>
         </div>
-        <div className="mt-5 flex rounded-[1.35rem] border border-[#ffffff]/10 bg-[#ffffff]/[0.06] p-1">
+        <div className="mt-5 flex rounded-[1.35rem] border border-[#E5E5E5] bg-[#F5F5F3] p-1">
           {languageOptions.map((item) => (
             <button
               key={item.code}
@@ -91,8 +91,8 @@ export function LoginScreen() {
               onClick={() => changeLanguage(item.code)}
               className={`flex-1 rounded-[1.1rem] px-3 py-2 text-xs font-bold transition ${
                 language === item.code
-                  ? 'bg-[#b3806e] text-[#ffffff]'
-                  : 'text-[#ffffff]/62 hover:text-[#ffffff]'
+                  ? 'bg-[#C8A96B] text-[#0F0F0F]'
+                  : 'text-[#7A7A7A] hover:text-[#0F0F0F]'
               }`}
             >
               {item.label}
@@ -111,13 +111,13 @@ export function LoginScreen() {
           }}
         >
           <Input value={pin} onChange={(event) => setPin(event.target.value)} placeholder={t.pin} />
-          {error ? <p className="text-sm text-[#b3806e]">{error}</p> : null}
+          {error ? <p className="text-sm text-[#C8A96B]">{error}</p> : null}
           <Button type="submit">
             <LockKeyhole size={18} />
             {t.button}
           </Button>
         </form>
-        <p className="mt-5 text-xs text-[#ffffff]/45">{t.pin}: 2026</p>
+        <p className="mt-5 text-xs text-[#7A7A7A]">{t.pin}: 2026</p>
       </Card>
     </main>
   );

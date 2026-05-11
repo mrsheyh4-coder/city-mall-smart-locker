@@ -26,6 +26,11 @@ tz-pages-local/
 tz-extracted-local.txt
 tz-path.txt
 backups/
+outputs/
+google-service-account*.json
+*service-account*.json
+*credentials*.json
+*credential*.json
 
 # OS/editor
 .DS_Store

@@ -1,5 +1,5 @@
-import { Dashboard } from '@/components/dashboard';
+import { AdminShell } from '@/modules/admin/admin-shell';
 
 export default function DashboardPage() {
-  return <Dashboard />;
+  return <AdminShell />;
 }

@@ -62,7 +62,7 @@ const text = {
     pin: 'PIN kod',
     qr: 'QR kirish kodi',
     idle: 'Avtomatik reset',
-    access: 'PIN / QR orqali ochish',
+    access: 'Yashikni ochish',
     accessTitle: 'Yashikni ochish',
     lockerNumber: 'Yashik raqami',
     credential: 'PIN yoki QR kodi',
@@ -118,7 +118,7 @@ const text = {
     pin: 'PIN код',
     qr: 'QR код доступа',
     idle: 'Автосброс',
-    access: 'Открыть по PIN / QR',
+    access: 'Открыть ячейку',
     accessTitle: 'Открыть ячейку',
     lockerNumber: 'Номер ячейки',
     credential: 'PIN или QR код',
@@ -174,7 +174,7 @@ const text = {
     pin: 'PIN code',
     qr: 'QR access code',
     idle: 'Auto reset',
-    access: 'Open with PIN / QR',
+    access: 'Open locker',
     accessTitle: 'Open locker',
     lockerNumber: 'Locker number',
     credential: 'PIN or QR code',
@@ -298,7 +298,21 @@ export function CustomerTerminal() {
     [data, size],
   );
   const durationOptions = useMemo(() => {
-    const options = (tariffs ?? defaultDurations)
+    const uniqueOptions = new Map<string, Tariff>();
+
+    for (const tariff of tariffs ?? defaultDurations) {
+      if (!tariff.isActive || tariff.lockerSize !== size) {
+        continue;
+      }
+
+      const key = `${tariff.lockerSize}-${tariff.durationMinutes}-${tariff.currency}`;
+      const existing = uniqueOptions.get(key);
+      if (!existing || tariff.price < existing.price) {
+        uniqueOptions.set(key, tariff);
+      }
+    }
+
+    const options = Array.from(uniqueOptions.values())
       .filter((tariff) => tariff.isActive && tariff.lockerSize === size)
       .sort((first, second) => first.durationMinutes - second.durationMinutes);
 
@@ -561,7 +575,7 @@ export function CustomerTerminal() {
               {t.fullscreen}
             </Button>
             {step === 'language' ? (
-              <Button variant="secondary" className="col-span-2 min-h-14 min-w-0 whitespace-normal px-3 text-sm leading-tight sm:px-6 sm:text-base lg:col-span-1 lg:min-h-16" onClick={() => setStep('access')}>
+              <Button variant="secondary" className="col-span-2 min-h-18 min-w-0 whitespace-normal px-5 text-xl leading-tight sm:px-8 sm:text-2xl lg:col-span-1 lg:min-h-20" onClick={() => setStep('access')}>
                 <KeyRound size={22} />
                 {t.access}
               </Button>
@@ -721,7 +735,7 @@ export function CustomerTerminal() {
                   />
                   <div className="mt-8">
                     <Button className="min-h-20 w-full text-xl" disabled={isSendingSms} onClick={() => void sendSmsCode()}>
-                      {t.smsSend}
+                      {isSendingSms ? getSmsSendingLabel(language) : t.smsSend}
                     </Button>
                   </div>
                 </Card>
@@ -752,7 +766,7 @@ export function CustomerTerminal() {
                   />
                   <div className="mt-8 grid gap-4 md:grid-cols-2">
                     <Button variant="secondary" className="min-h-20 text-xl" disabled={isSendingSms} onClick={() => void sendSmsCode()}>
-                      {t.smsSend}
+                      {isSendingSms ? getSmsSendingLabel(language) : t.smsSend}
                     </Button>
                     <Button className="min-h-20 text-xl" disabled={isVerifyingSms || smsCode.length !== 4} onClick={() => void submitSmsCode()}>
                       {t.smsVerify}
@@ -956,6 +970,18 @@ function formatDuration(minutes: number, language: Language) {
     return `${minutes} min`;
   }
   return `${minutes} daqiqa`;
+}
+
+function getSmsSendingLabel(language: Language) {
+  if (language === 'ru') {
+    return 'Sending...';
+  }
+
+  if (language === 'en') {
+    return 'Sending...';
+  }
+
+  return 'Yuborilmoqda...';
 }
 
 function parseLockerNumber(value: string) {

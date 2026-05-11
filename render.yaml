@@ -49,6 +49,18 @@ services:
         value: MOCK
       - key: ONE_C_MODE
         value: FILE
+      - key: GOOGLE_SHEETS_MODE
+        value: ENABLED
+      - key: GOOGLE_SHEETS_SPREADSHEET_ID
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_SHEETS_PAYMENTS_SHEET
+        value: Payments
+      - key: GOOGLE_SHEETS_TARIFFS_SHEET
+        value: Tariffs
       - key: CCTV_MODE
         value: MANUAL
       - key: CCTV_RETENTION_DAYS

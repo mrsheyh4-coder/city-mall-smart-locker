@@ -8,12 +8,16 @@
     "qa:smoke": "node scripts/qa-smoke.js",
     "qa:ui": "node scripts/local-ui-smoke.mjs",
     "stop:dev": "node scripts/stop-dev.js",
+    "demo:start": "node scripts/start-demo.js",
+    "demo:frontend": "node scripts/serve-frontend-static.js",
+    "demo:prepare": "npm run stop:dev && node scripts/reset-frontend-cache.js && npm run build --prefix backend && npm run build --prefix frontend",
     "backup:db": "node scripts/backup-postgres.js",
     "fix:frontend-cache": "node scripts/reset-frontend-cache.js",
     "dev:clean": "node scripts/stop-dev.js && node scripts/reset-frontend-cache.js",
     "dev:frontend:clean": "node scripts/reset-frontend-cache.js && npm run dev --prefix frontend",
     "build:frontend": "npm run stop:dev && node scripts/reset-frontend-cache.js && npm run build --prefix frontend",
-    "dev:backend": "npm run start:dev --prefix backend",
+    "dev:backend": "npm run build --prefix backend && npm run start:prod --prefix backend",
+    "dev:backend:watch": "npm run start:dev --prefix backend",
     "dev:frontend": "node scripts/reset-frontend-cache.js && npm run dev --prefix frontend"
   },
   "devDependencies": {

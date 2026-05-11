@@ -1137,6 +1137,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     const tariff = await this.prisma.tariff.create({ data });
     await this.createLog('INFO', 'admin', `Tariff ${tariff.name} created`);
     this.gateway.emitBookingUpdated({ source: 'tariff', tariff });
+    await this.syncTariffsToGoogleSheets('created');
     return tariff;
   }
 
@@ -1157,6 +1158,7 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     });
     await this.createLog('INFO', 'admin', `Tariff ${tariff.name} updated`);
     this.gateway.emitBookingUpdated({ source: 'tariff', tariff });
+    await this.syncTariffsToGoogleSheets('updated');
     return tariff;
   }
 
@@ -1164,7 +1166,31 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     const tariff = await this.prisma.tariff.delete({ where: { id } });
     await this.createLog('WARN', 'admin', `Tariff ${tariff.name} deleted`);
     this.gateway.emitBookingUpdated({ source: 'tariff', tariff });
+    await this.syncTariffsToGoogleSheets('deleted');
     return tariff;
+  }
+
+  private async syncTariffsToGoogleSheets(action: string) {
+    try {
+      const result =
+        await this.integrations.syncGoogleSheetsTariffsFromDatabase();
+      if ('skipped' in result && result.skipped) {
+        return;
+      }
+
+      await this.createLog(
+        'INFO',
+        'google-sheets',
+        `Tariffs ${action}; Google Sheets tariff export synced`,
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      await this.createLog(
+        'WARN',
+        'google-sheets',
+        `Tariffs ${action}; Google Sheets tariff export failed: ${reason}`,
+      );
+    }
   }
 
   async revokeAccessCode(id: string) {

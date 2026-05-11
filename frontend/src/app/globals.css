@@ -1,24 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  --background: #1a212f;
-  --foreground: #ffffff;
-  --premium-bg: #1a212f;
-  --premium-bronze: #b3806e;
+  --background: #f5f5f3;
+  --foreground: #0f0f0f;
+  --premium-bg: #0f0f0f;
+  --premium-panel: #1c1c1c;
+  --premium-gold: #c8a96b;
+  --premium-gold-light: #d8be8b;
+  --premium-border: #e5e5e5;
+  --premium-text-gray: #7a7a7a;
+  --premium-bronze: #c8a96b;
   --premium-white: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-manrope);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
 }
 
 * {
@@ -32,32 +37,56 @@ body {
 
 .luxury-bg {
   background:
-    radial-gradient(circle at 18% 10%, color-mix(in srgb, var(--premium-bronze) 30%, transparent), transparent 28%),
+    radial-gradient(circle at 18% 10%, color-mix(in srgb, var(--premium-gold) 24%, transparent), transparent 30%),
     radial-gradient(circle at 82% 4%, color-mix(in srgb, var(--premium-white) 10%, transparent), transparent 24%),
-    linear-gradient(135deg, var(--premium-bg), color-mix(in srgb, var(--premium-bg) 86%, var(--premium-bronze) 14%));
+    linear-gradient(135deg, var(--premium-bg), color-mix(in srgb, var(--premium-panel) 88%, var(--premium-gold) 12%));
 }
 
 .luxury-card {
   border: 1px solid color-mix(in srgb, var(--premium-white) 13%, transparent);
-  background: color-mix(in srgb, var(--premium-bg) 82%, var(--premium-white) 18%);
-  box-shadow: 0 24px 80px color-mix(in srgb, var(--premium-bg) 78%, transparent);
+  background: color-mix(in srgb, var(--premium-panel) 82%, var(--premium-white) 18%);
+  box-shadow: 0 24px 80px rgba(15, 15, 15, 0.42);
   backdrop-filter: blur(22px);
 }
 
 .luxury-card-strong {
-  border: 1px solid color-mix(in srgb, var(--premium-bronze) 42%, transparent);
+  border: 1px solid color-mix(in srgb, var(--premium-gold) 42%, transparent);
   background:
-    linear-gradient(145deg, color-mix(in srgb, var(--premium-bg) 74%, var(--premium-white) 26%), color-mix(in srgb, var(--premium-bg) 90%, var(--premium-bronze) 10%));
-  box-shadow: 0 28px 90px color-mix(in srgb, var(--premium-bronze) 18%, transparent);
+    linear-gradient(145deg, color-mix(in srgb, var(--premium-panel) 92%, var(--premium-white) 8%), color-mix(in srgb, var(--premium-bg) 88%, var(--premium-gold) 12%));
+  box-shadow: 0 28px 90px rgba(15, 15, 15, 0.18);
   backdrop-filter: blur(24px);
 }
 
 .bronze-glow {
-  box-shadow: 0 0 36px color-mix(in srgb, var(--premium-bronze) 34%, transparent);
+  box-shadow: 0 0 36px color-mix(in srgb, var(--premium-gold) 34%, transparent);
 }
 
 .bronze-line {
-  background: linear-gradient(90deg, transparent, var(--premium-bronze), transparent);
+  background: linear-gradient(90deg, transparent, var(--premium-gold), transparent);
+}
+
+.premium-shell {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(216, 190, 139, 0.28), transparent 28%),
+    linear-gradient(180deg, #f5f5f3 0%, #ffffff 42%, #f5f5f3 100%);
+  color: #0f0f0f;
+}
+
+.premium-card {
+  border: 1px solid #e5e5e5;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 60px rgba(15, 15, 15, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.premium-dark-card {
+  border: 1px solid rgba(200, 169, 107, 0.22);
+  background: linear-gradient(145deg, #0f0f0f, #1c1c1c);
+  box-shadow: 0 30px 90px rgba(15, 15, 15, 0.24);
+}
+
+.premium-gold-text {
+  color: #c8a96b;
 }
 
 @media (max-height: 820px) and (min-width: 768px) {
