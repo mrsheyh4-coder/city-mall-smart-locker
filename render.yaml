@@ -50,6 +50,8 @@ services:
         value: "4546"
       - key: DEVSMS_TYPE
         value: universal_otp
+      - key: DEVSMS_MESSAGE_TYPE
+        value: eskiz
       - key: DEVSMS_TEMPLATE_TYPE
         value: "1"
       - key: DEVSMS_SERVICE_NAME
