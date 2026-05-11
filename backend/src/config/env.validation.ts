@@ -17,10 +17,12 @@ interface EnvironmentVariables {
   DEVSMS_BASE_URL?: string;
   SMS_MODE?: string;
   SMS_PROVIDER?: string;
+  SMS_AUTH_MESSAGE?: string;
   SMS_ALLOW_LOCAL_SEND?: string;
   DEVSMS_TOKEN?: string;
   DEVSMS_SENDER?: string;
   DEVSMS_TYPE?: string;
+  DEVSMS_MESSAGE_TYPE?: string;
   DEVSMS_TEMPLATE_TYPE?: string;
   DEVSMS_SERVICE_NAME?: string;
 }
@@ -116,6 +118,10 @@ export function validateEnvironment(config: Record<string, unknown>) {
     validated.SMS_PROVIDER = config.SMS_PROVIDER;
   }
 
+  if (typeof config.SMS_AUTH_MESSAGE === 'string') {
+    validated.SMS_AUTH_MESSAGE = config.SMS_AUTH_MESSAGE;
+  }
+
   if (typeof config.SMS_ALLOW_LOCAL_SEND === 'string') {
     validated.SMS_ALLOW_LOCAL_SEND = config.SMS_ALLOW_LOCAL_SEND;
   }
@@ -130,6 +136,10 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (typeof config.DEVSMS_TYPE === 'string') {
     validated.DEVSMS_TYPE = config.DEVSMS_TYPE;
+  }
+
+  if (typeof config.DEVSMS_MESSAGE_TYPE === 'string') {
+    validated.DEVSMS_MESSAGE_TYPE = config.DEVSMS_MESSAGE_TYPE;
   }
 
   if (typeof config.DEVSMS_TEMPLATE_TYPE === 'string') {

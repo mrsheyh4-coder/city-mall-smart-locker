@@ -57,7 +57,7 @@ services:
       - key: DEVSMS_SERVICE_NAME
         value: City Mall
       - key: SMS_AUTH_MESSAGE
-        value: "Tashkent City Mall tasdiqlash kodi: {code}"
+        value: "{code}"
       - key: HARDWARE_MODE
         value: MOCK
       - key: ONE_C_MODE
