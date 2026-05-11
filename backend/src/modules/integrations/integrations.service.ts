@@ -539,20 +539,15 @@ export class IntegrationsService {
   private async sendDevSms(phone: string, message: string) {
     const baseUrl = process.env.DEVSMS_BASE_URL ?? 'https://devsms.uz/api';
     const type = process.env.DEVSMS_TYPE ?? 'eskiz';
-    const shouldUseUniversalOtp =
-      type === 'universal_otp' && this.isOtpOnlyMessage(message);
     const payload =
-      shouldUseUniversalOtp
+      type === 'universal_otp'
         ? this.buildDevSmsUniversalOtpPayload(phone, message)
         : {
             phone: this.normalizePhone(phone),
             message,
             from:
               process.env.DEVSMS_SENDER ?? process.env.ESKIZ_SENDER ?? '4546',
-            type:
-              type === 'universal_otp'
-                ? (process.env.DEVSMS_MESSAGE_TYPE ?? 'eskiz')
-                : type,
+            type,
           };
 
     const response = await fetch(`${baseUrl.replace(/\/$/, '')}/send_sms.php`, {
@@ -593,10 +588,6 @@ export class IntegrationsService {
       service_name: process.env.DEVSMS_SERVICE_NAME ?? 'City Mall',
       otp_code: otpCode,
     };
-  }
-
-  private isOtpOnlyMessage(message: string) {
-    return /^\d{4,8}$/.test(message.trim());
   }
 
   private extractOtpCode(message: string) {
