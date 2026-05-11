@@ -24,7 +24,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
-        value: https://city-mall-smart-locker.onrender.com
+        value: https://meek-creponne-66cec9.netlify.app,https://city-mall-smart-locker.netlify.app,https://city-mall-smart-locker.onrender.com
       - key: DATABASE_URL
         fromDatabase:
           name: city-mall-smart-locker-db
@@ -36,13 +36,25 @@ services:
       - key: PAYMENT_MODE
         value: MOCK
       - key: SMS_MODE
-        value: MOCK
+        value: DEVSMS
       - key: SMS_PROVIDER
-        value: ESKIZ
+        value: DEVSMS
       - key: SMS_ALLOW_LOCAL_SEND
         value: "false"
       - key: ESKIZ_SENDER
         value: "4546"
+      - key: DEVSMS_BASE_URL
+        value: https://devsms.uz/api
+      - key: DEVSMS_TOKEN
+        sync: false
+      - key: DEVSMS_SENDER
+        value: "4546"
+      - key: DEVSMS_TYPE
+        value: universal_otp
+      - key: DEVSMS_TEMPLATE_TYPE
+        value: "1"
+      - key: DEVSMS_SERVICE_NAME
+        value: City Mall
       - key: SMS_AUTH_MESSAGE
         value: "Tashkent City Mall tasdiqlash kodi: {code}"
       - key: HARDWARE_MODE
