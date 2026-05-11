@@ -357,10 +357,11 @@ export function AdminShell() {
   const queryClient = useQueryClient();
   const { user, hydrate, logout } = useAuthStore();
   const t = adminText[language];
-  const { data, isLoading } = useQuery({
+  const { data, error: adminError, isLoading } = useQuery({
     queryKey: ['admin-statistics'],
     queryFn: fetchAdminStatistics,
     refetchInterval: 10000,
+    retry: false,
   });
 
   useEffect(() => {
@@ -401,6 +402,13 @@ export function AdminShell() {
       router.replace('/login');
     }
   }, [router]);
+
+  useEffect(() => {
+    if (adminError instanceof Error && adminError.message.includes('Admin authentication')) {
+      logout();
+      router.replace('/login');
+    }
+  }, [adminError, logout, router]);
 
   useEffect(() => {
     const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });

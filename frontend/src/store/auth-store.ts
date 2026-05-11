@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 const TOKEN_KEY = 'city-mall-admin-token';
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 type AdminUser = {
   name: string;
@@ -19,6 +20,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   hydrate: () => {
     const token = window.localStorage.getItem(TOKEN_KEY);
+    if (token?.startsWith('demo-admin-') && shouldDisableDemoAdmin()) {
+      window.localStorage.removeItem(TOKEN_KEY);
+      set({ user: null });
+      return;
+    }
+
     set({ user: token ? { name: 'City Mall Admin', role: 'ADMIN' } : null });
   },
   login: async (pin) => {
@@ -35,7 +42,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
 
       if (!response.ok) {
-        if (demoPin) {
+        if (demoPin && !shouldDisableDemoAdmin()) {
           return startDemoAdminSession(set);
         }
 
@@ -51,7 +58,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: { name: 'City Mall Admin', role: 'ADMIN' } });
       return true;
     } catch (error) {
-      if (demoPin && error instanceof TypeError) {
+      if (demoPin && error instanceof TypeError && !shouldDisableDemoAdmin()) {
         return startDemoAdminSession(set);
       }
 
@@ -68,4 +75,12 @@ function startDemoAdminSession(set: (state: Pick<AuthState, 'user'>) => void) {
   window.localStorage.setItem(TOKEN_KEY, `demo-admin-${Date.now()}`);
   set({ user: { name: 'City Mall Admin', role: 'ADMIN' } });
   return true;
+}
+
+function shouldDisableDemoAdmin() {
+  if (!IS_PRODUCTION || typeof window === 'undefined') {
+    return false;
+  }
+
+  return !['localhost', '127.0.0.1'].includes(window.location.hostname);
 }

@@ -101,6 +101,10 @@ export async function fetchAdminStatistics(): Promise<AdminStatistics> {
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 404) {
+        if (shouldDisableDemoFallback()) {
+          throw new Error('Admin authentication is required');
+        }
+
         return buildDemoAdminStatistics();
       }
 
@@ -805,7 +809,18 @@ function isDemoAdminSession() {
     return false;
   }
 
-  return window.localStorage.getItem(ADMIN_TOKEN_KEY)?.startsWith('demo-admin-') ?? false;
+  return (
+    !shouldDisableDemoFallback() &&
+    (window.localStorage.getItem(ADMIN_TOKEN_KEY)?.startsWith('demo-admin-') ?? false)
+  );
+}
+
+function shouldDisableDemoFallback() {
+  if (!IS_PRODUCTION || typeof window === 'undefined') {
+    return false;
+  }
+
+  return !['localhost', '127.0.0.1'].includes(window.location.hostname);
 }
 
 function runDemoLockerAdminCommand(
