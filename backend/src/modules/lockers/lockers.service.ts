@@ -599,21 +599,12 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     });
 
     const pinCode = booking.accessCodes[0]?.pinCode ?? '';
-    const sms = pinCode
-      ? await this.queueAccessSms(
-          booking.phone,
-          this.buildLockerPinMessage(
-            pinCode,
-            booking.locker.number,
-            booking.language,
-          ),
-        )
-      : null;
+    const sms = null;
 
     await this.createLog(
       'INFO',
       'payment',
-      `Mock payment approved for booking ${booking.id}; SMS ${sms?.state ?? 'SKIPPED'}`,
+      `Mock payment approved for booking ${booking.id}; access PIN was already sent during SMS verification`,
       booking.lockerId,
     );
     await this.integrations
