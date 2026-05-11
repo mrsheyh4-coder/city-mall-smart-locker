@@ -1626,10 +1626,6 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
 
   private buildSmsAuthMessage(code: string, language?: string) {
     const template = process.env.SMS_AUTH_MESSAGE;
-    if (language) {
-      return this.buildLocalizedSmsAuthMessage(code, language);
-    }
-
     if (!template) {
       return this.buildLocalizedSmsAuthMessage(code, language);
     }
