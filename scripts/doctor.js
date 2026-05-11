@@ -23,6 +23,27 @@ const apiHeaders = { 'X-API-Version': '1' };
 
 let failures = 0;
 let warnings = 0;
+let doctorEnv = {};
+
+const options = parseArgs(process.argv.slice(2));
+
+function parseArgs(args) {
+  const intervalArg = args.find((arg) => arg.startsWith('--interval='));
+  const intervalSeconds = intervalArg
+    ? Math.max(10, Number(intervalArg.split('=')[1]) || 60)
+    : 60;
+
+  return {
+    deep: args.includes('--deep'),
+    watch: args.includes('--watch'),
+    intervalSeconds,
+  };
+}
+
+function resetCounters() {
+  failures = 0;
+  warnings = 0;
+}
 
 function markFailure(message) {
   failures += 1;
@@ -43,6 +64,7 @@ async function checkEnv() {
   }
 
   const env = readEnvFile(backendEnvPath);
+  doctorEnv = env;
 
   if (!env.DATABASE_URL) {
     markFailure('DATABASE_URL is missing in backend/.env');
@@ -309,6 +331,31 @@ async function checkBackendApi() {
     }
 
     ok(`Backend tariffs endpoint healthy (${tariffs.body.length} tariff(s))`);
+
+    const integrations = await requestJson(
+      'http://localhost:4000/api/integrations/status',
+      apiHeaders,
+    );
+    if (integrations.statusCode !== 200) {
+      markFailure(`Backend integrations status returned HTTP ${integrations.statusCode}`);
+      return false;
+    }
+
+    const sheets = integrations.body?.googleSheets;
+    if (doctorEnv.GOOGLE_SHEETS_MODE === 'ENABLED') {
+      if (sheets?.state === 'READY') {
+        ok('Google Sheets integration is READY');
+      } else {
+        markFailure(
+          `Google Sheets is enabled but not ready (${sheets?.state ?? 'unknown'})`,
+        );
+      }
+    } else if (sheets?.mode === 'ENABLED' && sheets?.state !== 'READY') {
+      markWarning(`Google Sheets mode is ENABLED but state is ${sheets.state}`);
+    } else {
+      ok(`Integration status endpoint healthy (Google Sheets: ${sheets?.state ?? 'unknown'})`);
+    }
+
     return true;
   } catch (error) {
     markFailure(`Backend API request failed: ${error.message}`);
@@ -402,8 +449,38 @@ function checkFrontendCacheFolder() {
   ok('Frontend .next cache folder exists');
 }
 
-async function main() {
+async function runDeepChecks() {
+  log('\nDeep smoke checks');
+
+  const apiSmoke = run('npm', ['run', 'qa:smoke'], {
+    cwd: rootDir,
+    silent: true,
+  });
+
+  if (apiSmoke.ok) {
+    ok('API customer/admin smoke flow passed');
+  } else {
+    markFailure(`API smoke failed\n${apiSmoke.stderr || apiSmoke.stdout}`);
+  }
+
+  const uiSmoke = run('npm', ['run', 'qa:ui'], {
+    cwd: rootDir,
+    silent: true,
+  });
+
+  if (uiSmoke.ok) {
+    ok('UI button/navigation smoke passed');
+  } else {
+    markFailure(`UI smoke failed\n${uiSmoke.stderr || uiSmoke.stdout}`);
+  }
+}
+
+async function runOnce() {
+  resetCounters();
   log('Smart Locker Doctor started');
+  if (options.deep) {
+    log('Deep mode enabled: API flow and UI button checks will run');
+  }
 
   const env = await checkEnv();
 
@@ -421,21 +498,42 @@ async function main() {
   await checkBackendApi();
   checkFrontendCacheFolder();
   await checkFrontend();
+  if (options.deep) {
+    await runDeepChecks();
+  }
 
   log('\nSummary');
 
   if (failures === 0 && warnings === 0) {
     ok('System is healthy');
-    return;
+    return true;
   }
 
   if (failures === 0) {
     warn(`Doctor completed with ${warnings} warning(s)`);
-    return;
+    return true;
   }
 
   fail(`Doctor completed with ${failures} failure(s) and ${warnings} warning(s)`);
-  process.exit(1);
+  return false;
+}
+
+async function main() {
+  if (!options.watch) {
+    const healthy = await runOnce();
+    if (!healthy) {
+      process.exit(1);
+    }
+    return;
+  }
+
+  while (true) {
+    const startedAt = new Date().toLocaleString();
+    log(`\n=== Doctor watch cycle: ${startedAt} ===`);
+    await runOnce();
+    log(`\nNext doctor cycle in ${options.intervalSeconds}s`);
+    await new Promise((resolve) => setTimeout(resolve, options.intervalSeconds * 1000));
+  }
 }
 
 main().catch((error) => {

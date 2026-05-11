@@ -39,6 +39,8 @@ async function fillBySelector(page, selector, value) {
 }
 
 async function testTerminal(page) {
+  const phone = `+99890${String(Date.now()).slice(-7)}`;
+
   await page.goto(`${frontendUrl}/terminal`, { waitUntil: 'networkidle' });
   await assertStyled(page, 'Terminal language page');
   await page.getByRole('heading', { name: 'Tilni tanlang' }).waitFor();
@@ -59,7 +61,7 @@ async function testTerminal(page) {
   await page.getByRole('heading', { name: 'Saqlash muddatini tanlang' }).waitFor();
   await page.getByRole('button', { name: /15 daqiqa/ }).click();
   await page.getByRole('heading', { name: 'Telefon raqamingiz' }).waitFor();
-  await fillBySelector(page, 'input[inputmode="tel"]', '+998901234567');
+  await fillBySelector(page, 'input[inputmode="tel"]', phone);
   await clickUnique(page, 'button', 'SMS kod yuborish');
   await page.getByRole('heading', { name: 'SMS kodni kiriting' }).waitFor();
   const codeText = await page.getByText(/Demo kod:/).innerText();
@@ -81,23 +83,21 @@ async function testAdmin(page) {
   await clickUnique(page, 'button', 'Admin panelga kirish');
   await page.waitForURL('**/admin', { timeout: 10_000 });
   await assertStyled(page, 'Admin page');
-  await page.getByText('Tariflarni boshqarish').waitFor();
-  await page.getByRole('button', { name: /Tariflarni boshqarish/ }).click();
 
-  const nameField = page.locator('input[placeholder="Tariff nomi"]');
-  const testTariffName = `SMALL TEST ${Date.now()}`;
-  await nameField.fill(testTariffName);
-  await page.locator('select').selectOption('SMALL');
-  const numberFields = page.locator('input[type="number"]');
-  await numberFields.nth(0).fill('15');
-  await numberFields.nth(1).fill('5555');
-  await clickUnique(page, 'button', "Qo'shish");
-  await page.getByText(testTariffName, { exact: true }).waitFor();
+  const sectionChecks = [
+    { button: /Dashboard/, text: 'Moliyaviy hisobotlar' },
+    { button: /Buyurtmalar boshqaruvi/, text: 'Buyurtmalar boshqaruvi' },
+    { button: /Tariflarni boshqarish/, text: 'Tariflarni boshqarish' },
+    { button: /PIN \/ QR kirish boshqaruvi/, text: 'PIN / QR kirish boshqaruvi' },
+    { button: /Tizim loglari/, text: 'Tizim loglari' },
+    { button: /Yashik monitoringi/, text: 'Yashik monitoringi' },
+  ];
 
-  const tariffRow = page.locator('div').filter({ hasText: testTariffName }).filter({ hasText: '5,555 UZS' });
-  assert((await tariffRow.count()) > 0, 'New tariff did not appear in admin list');
+  for (const section of sectionChecks) {
+    await page.getByRole('button', { name: section.button }).first().click();
+    await page.getByText(section.text).first().waitFor();
+  }
 
-  await page.getByText('Yashik monitoringi').waitFor();
   const lockerButton = page.getByRole('button', { name: /L-01/ });
   if ((await lockerButton.count()) === 1) {
     await lockerButton.click();

@@ -14,6 +14,10 @@ interface EnvironmentVariables {
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?: string;
   GOOGLE_SHEETS_PAYMENTS_SHEET?: string;
   GOOGLE_SHEETS_TARIFFS_SHEET?: string;
+  DEVSMS_BASE_URL?: string;
+  DEVSMS_TOKEN?: string;
+  DEVSMS_SENDER?: string;
+  DEVSMS_TYPE?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {
@@ -93,6 +97,22 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (typeof config.GOOGLE_SHEETS_TARIFFS_SHEET === 'string') {
     validated.GOOGLE_SHEETS_TARIFFS_SHEET = config.GOOGLE_SHEETS_TARIFFS_SHEET;
+  }
+
+  if (typeof config.DEVSMS_BASE_URL === 'string') {
+    validated.DEVSMS_BASE_URL = config.DEVSMS_BASE_URL;
+  }
+
+  if (typeof config.DEVSMS_TOKEN === 'string') {
+    validated.DEVSMS_TOKEN = config.DEVSMS_TOKEN;
+  }
+
+  if (typeof config.DEVSMS_SENDER === 'string') {
+    validated.DEVSMS_SENDER = config.DEVSMS_SENDER;
+  }
+
+  if (typeof config.DEVSMS_TYPE === 'string') {
+    validated.DEVSMS_TYPE = config.DEVSMS_TYPE;
   }
 
   return validated;

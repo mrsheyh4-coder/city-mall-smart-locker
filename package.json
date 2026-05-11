@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "doctor": "node scripts/doctor.js",
+    "doctor:deep": "node scripts/doctor.js --deep",
+    "doctor:watch": "node scripts/doctor.js --deep --watch --interval=60",
     "verify": "node scripts/verify.js",
     "qa:smoke": "node scripts/qa-smoke.js",
     "qa:ui": "node scripts/local-ui-smoke.mjs",

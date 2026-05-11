@@ -24,6 +24,20 @@ type EskizSendResponse = {
   status?: string;
 };
 
+type DevSmsSendResponse = {
+  success?: boolean;
+  message?: string;
+  data?: {
+    sms_id?: number;
+    request_id?: string;
+    status?: string;
+    parts_count?: number;
+    total_cost?: number;
+    balance?: number;
+    type?: string;
+  };
+};
+
 type GoogleTokenResponse = {
   access_token?: string;
   expires_in?: number;
@@ -84,6 +98,7 @@ export class IntegrationsService {
         eskiz: this.hasAll('ESKIZ_EMAIL', 'ESKIZ_PASSWORD')
           ? 'READY'
           : 'DISABLED',
+        devsms: this.hasAll('DEVSMS_TOKEN') ? 'READY' : 'DISABLED',
       },
       oneC: {
         mode: process.env.ONE_C_MODE ?? 'FILE',
@@ -140,28 +155,52 @@ export class IntegrationsService {
   async sendSms(phone: string, message: string) {
     const smsMode = process.env.SMS_MODE ?? 'MOCK';
     const realDeliveryEnabled = this.isRealSmsDeliveryEnabled();
-    const hasEskizCredentials = this.hasAll('ESKIZ_EMAIL', 'ESKIZ_PASSWORD');
 
-    if (smsMode === 'ESKIZ' && realDeliveryEnabled && !hasEskizCredentials) {
-      throw new ServiceUnavailableException(
-        'Eskiz SMS is enabled but ESKIZ_EMAIL or ESKIZ_PASSWORD is missing.',
+    if (smsMode === 'MOCK' || !realDeliveryEnabled) {
+      await this.createIntegrationLog(
+        'sms',
+        `SMS MOCK queued for ${this.maskPhone(phone)}`,
       );
+
+      return {
+        queued: true,
+        provider: process.env.SMS_PROVIDER ?? 'MOCK',
+        state: 'MOCK' as const,
+        phone: this.maskPhone(phone),
+        preview: message,
+      };
     }
 
-    const state: IntegrationState =
-      realDeliveryEnabled && hasEskizCredentials
-        ? 'READY'
-        : smsMode === 'MOCK'
-          ? 'MOCK'
-          : 'DISABLED';
+    if (smsMode === 'DEVSMS') {
+      if (!this.hasAll('DEVSMS_TOKEN')) {
+        throw new ServiceUnavailableException(
+          'DevSMS is enabled but DEVSMS_TOKEN is missing.',
+        );
+      }
 
-    if (smsMode === 'ESKIZ' && state === 'DISABLED') {
-      throw new ServiceUnavailableException(
-        'Eskiz SMS delivery is disabled for this environment.',
+      const result = await this.sendDevSms(phone, message);
+      await this.createIntegrationLog(
+        'sms',
+        `SMS sent through DevSMS to ${this.maskPhone(phone)} (${result.data?.status ?? result.message ?? 'accepted'})`,
       );
+
+      return {
+        queued: true,
+        provider: 'DEVSMS',
+        state: 'READY' as const,
+        phone: this.maskPhone(phone),
+        messageId: result.data?.request_id ?? String(result.data?.sms_id ?? ''),
+        providerStatus: result.data?.status ?? result.message ?? null,
+      };
     }
 
-    if (state === 'READY') {
+    if (smsMode === 'ESKIZ') {
+      if (!this.hasAll('ESKIZ_EMAIL', 'ESKIZ_PASSWORD')) {
+        throw new ServiceUnavailableException(
+          'Eskiz SMS is enabled but ESKIZ_EMAIL or ESKIZ_PASSWORD is missing.',
+        );
+      }
+
       const result = await this.sendEskizSms(phone, message);
       await this.createIntegrationLog(
         'sms',
@@ -171,25 +210,16 @@ export class IntegrationsService {
       return {
         queued: true,
         provider: 'ESKIZ',
-        state,
+        state: 'READY' as const,
         phone: this.maskPhone(phone),
         messageId: result.id ?? null,
         providerStatus: result.status ?? result.message ?? null,
       };
     }
 
-    await this.createIntegrationLog(
-      'sms',
-      `SMS ${state} queued for ${this.maskPhone(phone)}`,
+    throw new ServiceUnavailableException(
+      `Unsupported SMS_MODE: ${smsMode}. Use MOCK, ESKIZ, or DEVSMS.`,
     );
-
-    return {
-      queued: true,
-      provider: process.env.SMS_PROVIDER ?? 'ESKIZ',
-      state,
-      phone: this.maskPhone(phone),
-      preview: message,
-    };
   }
 
   async exportOneCReport(from?: string, to?: string) {
@@ -495,7 +525,7 @@ export class IntegrationsService {
   }
 
   private isRealSmsDeliveryEnabled() {
-    if ((process.env.SMS_MODE ?? 'MOCK') !== 'ESKIZ') {
+    if (!['ESKIZ', 'DEVSMS'].includes(process.env.SMS_MODE ?? 'MOCK')) {
       return false;
     }
 
@@ -503,6 +533,35 @@ export class IntegrationsService {
       process.env.NODE_ENV === 'production' ||
       process.env.SMS_ALLOW_LOCAL_SEND === 'true'
     );
+  }
+
+  private async sendDevSms(phone: string, message: string) {
+    const baseUrl = process.env.DEVSMS_BASE_URL ?? 'https://devsms.uz/api';
+    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/send_sms.php`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.DEVSMS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        phone: this.normalizePhone(phone),
+        message,
+        from: process.env.DEVSMS_SENDER ?? process.env.ESKIZ_SENDER ?? '4546',
+        type: process.env.DEVSMS_TYPE ?? 'eskiz',
+      }),
+    });
+
+    const body = (await response
+      .json()
+      .catch(() => ({}))) as DevSmsSendResponse;
+
+    if (!response.ok || body.success === false) {
+      throw new UnauthorizedException(
+        body.message ?? `DevSMS failed with ${response.status}`,
+      );
+    }
+
+    return body;
   }
 
   private async sendEskizSms(phone: string, message: string) {

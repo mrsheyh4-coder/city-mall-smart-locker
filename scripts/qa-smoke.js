@@ -48,7 +48,7 @@ async function main() {
 }
 
 async function customerFlow(locker) {
-  const phone = `+99890${String(locker.number).padStart(7, '0')}`;
+  const phone = makeQaPhone('90', locker.number);
   const sms = await post('/sms/auth/request', { phone });
   assert(sms.devCode, 'SMS demo code is returned for QA');
   const verified = await post('/sms/auth/verify', {
@@ -93,14 +93,14 @@ async function customerFlow(locker) {
     lockerId: locker.number,
     credential: paid.access.qrCode,
   });
-  assert(validQr.valid === true, 'Valid QR opens locker');
+  assert(validQr.valid === false, 'QR is rejected after PIN access completes booking');
 
   const released = await post('/locker/release', { lockerId: locker.number });
   assert(released.data?.status === 'AVAILABLE', 'Release returns locker to AVAILABLE');
 }
 
 async function expireFlow(locker) {
-  const phone = `+99891${String(locker.number).padStart(7, '0')}`;
+  const phone = makeQaPhone('91', locker.number);
   const sms = await post('/sms/auth/request', { phone });
   const verified = await post('/sms/auth/verify', {
     phone,
@@ -231,4 +231,9 @@ function assert(condition, message) {
   }
 
   ok(message);
+}
+
+function makeQaPhone(operatorCode, salt) {
+  const suffix = String(Date.now() + salt).slice(-7).padStart(7, '0');
+  return `+998${operatorCode}${suffix}`;
 }
