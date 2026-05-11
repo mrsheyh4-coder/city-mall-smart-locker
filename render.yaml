@@ -57,7 +57,7 @@ services:
       - key: DEVSMS_SERVICE_NAME
         value: City Mall
       - key: SMS_AUTH_MESSAGE
-        value: "{code}"
+        value: "MyService tizimi: City Mall xizmatida amaliyotni tasdiqlash kodi: {code}"
       - key: HARDWARE_MODE
         value: MOCK
       - key: ONE_C_MODE
