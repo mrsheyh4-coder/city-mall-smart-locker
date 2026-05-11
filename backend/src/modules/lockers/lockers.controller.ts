@@ -137,7 +137,11 @@ export class LockersController {
   @HttpCode(HttpStatus.OK)
   @RateLimit({ points: 6, windowMs: 60_000 })
   verifyAccess(@Body() dto: VerifyAccessDto) {
-    return this.lockersService.verifyAccess(dto.lockerId, dto.credential);
+    return this.lockersService.verifyAccess(
+      dto.lockerId,
+      dto.credential,
+      dto.accessAction ?? 'OPEN',
+    );
   }
 
   @Get('admin/statistics')

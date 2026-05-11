@@ -76,6 +76,8 @@ const text = {
     credential: 'PIN yoki QR kodi',
     openAccess: 'Tekshirish va ochish',
     accessGranted: 'Yashik ochildi',
+    accessCompleted: "Yashik bo'shatildi",
+    completeAccess: "Hammasini oldim",
     accessExpired: 'Kirish kodi muddati tugagan yoki ishlatilgan',
     invalidAccess: "PIN yoki QR kodi noto'g'ri",
     bookingExpired: 'Buyurtma muddati tugagan',
@@ -139,6 +141,8 @@ const text = {
     credential: 'PIN или QR код',
     openAccess: 'Проверить и открыть',
     accessGranted: 'Ячейка открыта',
+    accessCompleted: 'Ячейка освобождена',
+    completeAccess: 'Я забрал все вещи',
     accessExpired: 'Код доступа истек или уже использован',
     invalidAccess: 'Неверный PIN или QR код',
     bookingExpired: 'Срок бронирования истек',
@@ -202,6 +206,8 @@ const text = {
     credential: 'PIN or QR code',
     openAccess: 'Verify and open',
     accessGranted: 'Locker opened',
+    accessCompleted: 'Locker released',
+    completeAccess: 'I took everything',
     accessExpired: 'Access code expired or already used',
     invalidAccess: 'Invalid PIN or QR',
     bookingExpired: 'Booking expired',
@@ -230,6 +236,8 @@ function translateAccessReason(reason: string | undefined, labels: TerminalCopy)
 
   const dictionary: Record<string, string> = {
     'Access granted': labels.accessGranted,
+    'Locker opened': labels.accessGranted,
+    'Booking completed': labels.accessCompleted,
     'Access code expired or already used': labels.accessExpired,
     'Invalid access credential': labels.invalidAccess,
     'Invalid PIN or QR': labels.invalidAccess,
@@ -569,7 +577,7 @@ export function CustomerTerminal() {
     }
   }
 
-  async function submitAccess() {
+  async function submitAccess(accessAction: 'OPEN' | 'COMPLETE' = 'OPEN') {
     const lockerNumber = parseLockerNumber(accessLockerId);
 
     if (!lockerNumber || !credential.trim()) {
@@ -582,8 +590,8 @@ export function CustomerTerminal() {
     setIsVerifyingAccess(true);
 
     try {
-      const result = await verifyAccess(lockerNumber, credential.trim());
-      setAccessResult(result.valid ? t.accessGranted : translateAccessReason(result.reason, t));
+      const result = await verifyAccess(lockerNumber, credential.trim(), accessAction);
+      setAccessResult(translateAccessReason(result.reason, t));
       setAccessResetLeft(result.valid ? 10 : null);
       await refetch();
     } catch (requestError) {
@@ -715,10 +723,14 @@ export function CustomerTerminal() {
                       {accessResetLeft !== null ? ` · ${accessResetLeft}s` : ''}
                     </p>
                   ) : null}
-                  <div className="mt-8">
-                    <Button className="min-h-20 w-full text-xl" disabled={isVerifyingAccess} onClick={() => void submitAccess()}>
+                  <div className="mt-8 grid gap-4 md:grid-cols-2">
+                    <Button className="min-h-20 w-full text-xl" disabled={isVerifyingAccess} onClick={() => void submitAccess('OPEN')}>
                       <DoorOpen size={28} />
                       {t.openAccess}
+                    </Button>
+                    <Button variant="secondary" className="min-h-20 w-full text-xl" disabled={isVerifyingAccess} onClick={() => void submitAccess('COMPLETE')}>
+                      <CheckCircle2 size={28} />
+                      {t.completeAccess}
                     </Button>
                   </div>
                 </Card>

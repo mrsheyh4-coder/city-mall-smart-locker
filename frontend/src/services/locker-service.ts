@@ -356,12 +356,13 @@ export async function simulateDemoPayment(
 export async function verifyAccess(
   lockerId: number,
   credential: string,
+  accessAction: 'OPEN' | 'COMPLETE' = 'OPEN',
 ): Promise<AccessValidationResponse> {
   try {
     const response = await fetch(`${API_URL}/access/verify`, {
       method: 'POST',
       headers: { ...API_HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lockerId, credential }),
+      body: JSON.stringify({ lockerId, credential, accessAction }),
     });
 
     if (!response.ok) {
@@ -374,7 +375,7 @@ export async function verifyAccess(
       throw error;
     }
 
-    return validateDemoAccess(lockerId, credential);
+    return validateDemoAccess(lockerId, credential, accessAction);
   }
 }
 
@@ -717,6 +718,7 @@ export function releaseDemoLocker(lockerId: number) {
 export function validateDemoAccess(
   lockerId: number,
   credential: string,
+  accessAction: 'OPEN' | 'COMPLETE' = 'OPEN',
 ): AccessValidationResponse {
   expireDemoLockers();
   const locker = getDemoLockers().find((item) => item.number === lockerId);
@@ -731,7 +733,8 @@ export function validateDemoAccess(
   }
 
   const valid = credential === locker.pinCode || credential === locker.qrCode;
-  const updatedLocker = valid ? releaseDemoLocker(lockerId) : locker;
+  const updatedLocker =
+    valid && accessAction === 'COMPLETE' ? releaseDemoLocker(lockerId) : locker;
 
   addDemoLog(
     `${valid ? 'Access granted' : 'Access denied'} for locker ${lockerId}`,
@@ -740,7 +743,12 @@ export function validateDemoAccess(
 
   return {
     valid,
-    reason: valid ? 'Access granted' : 'Invalid PIN or QR',
+    reason:
+      valid && accessAction === 'COMPLETE'
+        ? 'Booking completed'
+        : valid
+          ? 'Locker opened'
+          : 'Invalid PIN or QR',
     data: updatedLocker,
   };
 }

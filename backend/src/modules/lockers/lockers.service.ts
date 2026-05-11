@@ -679,7 +679,11 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
     return this.mockPayment(booking.booking.id);
   }
 
-  async verifyAccess(lockerId: number, credential: string) {
+  async verifyAccess(
+    lockerId: number,
+    credential: string,
+    accessAction: 'OPEN' | 'COMPLETE' = 'OPEN',
+  ) {
     await this.expireOverdueBookings();
     const locker = await this.findByNumber(lockerId);
     const recentFailures = await this.prisma.accessLog.count({
@@ -731,11 +735,13 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
         locker.status === LockerStatus.OCCUPIED),
     );
     const valid = accessCodeValid || lockerAccessFallback;
-    const method = /^\d{4}$/.test(credential)
+    const method = /^\d{6}$/.test(credential)
       ? AccessMethod.PIN
       : AccessMethod.QR;
     const message = valid
-      ? 'Access granted'
+      ? accessAction === 'COMPLETE'
+        ? 'Booking completed'
+        : 'Locker opened'
       : accessCode || lockerCredentialMatches
         ? 'Access code expired or already used'
         : 'Invalid access credential';
@@ -754,42 +760,44 @@ export class LockersService implements OnModuleInit, OnModuleDestroy {
 
     if (valid) {
       await this.hardware.openLocker(locker.number);
-      updatedLocker = await this.prisma.$transaction(async (tx) => {
-        if (accessCode) {
-          await tx.accessCode.update({
-            where: { id: accessCode.id },
-            data: { usedAt: now },
+      if (accessAction === 'COMPLETE') {
+        updatedLocker = await this.prisma.$transaction(async (tx) => {
+          if (accessCode) {
+            await tx.accessCode.update({
+              where: { id: accessCode.id },
+              data: { usedAt: now },
+            });
+          }
+
+          await tx.booking.updateMany({
+            where: {
+              ...(accessCode?.bookingId
+                ? { id: accessCode.bookingId }
+                : { lockerId: locker.id }),
+              status: BookingStatus.ACTIVE,
+            },
+            data: { status: BookingStatus.COMPLETED, completedAt: now },
           });
-        }
 
-        await tx.booking.updateMany({
-          where: {
-            ...(accessCode?.bookingId
-              ? { id: accessCode.bookingId }
-              : { lockerId: locker.id }),
-            status: BookingStatus.ACTIVE,
-          },
-          data: { status: BookingStatus.COMPLETED, completedAt: now },
-        });
+          await tx.session.updateMany({
+            where: { lockerId: locker.id, status: SessionStatus.ACTIVE },
+            data: { status: SessionStatus.COMPLETED, endTime: now },
+          });
 
-        await tx.session.updateMany({
-          where: { lockerId: locker.id, status: SessionStatus.ACTIVE },
-          data: { status: SessionStatus.COMPLETED, endTime: now },
+          return tx.locker.update({
+            where: { id: locker.id },
+            data: {
+              status: LockerStatus.AVAILABLE,
+              isOpen: false,
+              pinCode: null,
+              qrCode: null,
+              customerName: null,
+              bookingStartAt: null,
+              bookingExpiresAt: null,
+            },
+          });
         });
-
-        return tx.locker.update({
-          where: { id: locker.id },
-          data: {
-            status: LockerStatus.AVAILABLE,
-            isOpen: false,
-            pinCode: null,
-            qrCode: null,
-            customerName: null,
-            bookingStartAt: null,
-            bookingExpiresAt: null,
-          },
-        });
-      });
+      }
     }
 
     await this.createLog(valid ? 'INFO' : 'WARN', 'access', message, locker.id);

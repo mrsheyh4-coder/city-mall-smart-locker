@@ -87,14 +87,18 @@ async function customerFlow(locker) {
   const validPin = await post('/access/verify', {
     lockerId: locker.number,
     credential: paid.access.pinCode,
+    accessAction: 'OPEN',
   });
   assert(validPin.valid === true, 'Valid PIN opens locker');
+  assert(validPin.data?.status === 'OCCUPIED', 'Opening keeps the booking active');
 
   const validQr = await post('/access/verify', {
     lockerId: locker.number,
     credential: paid.access.qrCode,
+    accessAction: 'COMPLETE',
   });
-  assert(validQr.valid === false, 'QR is rejected after PIN access completes booking');
+  assert(validQr.valid === true, 'QR completes booking after customer takes everything');
+  assert(validQr.data?.status === 'AVAILABLE', 'Completion returns locker to AVAILABLE');
 
   const released = await post('/locker/release', { lockerId: locker.number });
   assert(released.data?.status === 'AVAILABLE', 'Release returns locker to AVAILABLE');

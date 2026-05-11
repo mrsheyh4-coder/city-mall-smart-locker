@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsInt,
   IsISO8601,
+  IsIn,
   IsOptional,
   IsPhoneNumber,
   IsPositive,
@@ -107,6 +108,10 @@ export class VerifyAccessDto {
   @IsString()
   @Length(4, 512)
   credential: string;
+
+  @IsIn(['OPEN', 'COMPLETE'])
+  @IsOptional()
+  accessAction?: 'OPEN' | 'COMPLETE';
 }
 
 export class UpsertTariffDto {
