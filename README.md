@@ -1,163 +1,79 @@
 # City Mall Smart Locker MVP
 
-Premium software MVP for a scalable smart locker ecosystem prepared for kiosk, admin dashboard, PostgreSQL, Prisma, and future ESP32 hardware integration.
+Verified public repository for Abdulaziz's Kwork portfolio.
 
-## Stack
+## Status
 
-- Frontend: Next.js 15, TypeScript, Tailwind CSS, App Router
+- Repository: public
+- Live URL: not verified
+- Portfolio category: Smart Retail, IoT-ready Platform, Admin Dashboard, Booking System, Real-time System
+- Security scan: no real API tokens found in current files or public branch history on 2026-06-27
+
+## Overview
+
+City Mall Smart Locker is a premium MVP for a scalable smart locker ecosystem. It includes a customer/admin dashboard foundation, booking and access-code flows, API-ready backend services, PostgreSQL/Prisma data modeling, and future hardware integration planning.
+
+## Tech Stack
+
+- Frontend: Next.js, TypeScript, Tailwind CSS, App Router
 - Backend: NestJS, TypeScript
 - Database: PostgreSQL
 - ORM: Prisma
-- Package manager: npm
+- Realtime: Socket.io-ready architecture
+- Deployment config: Render
+
+## Main Features
+
+- Smart locker dashboard
+- Locker status overview
+- Booking creation flow
+- QR/PIN access-code logic
+- Admin statistics
+- Payment integration readiness
+- SMS/verification integration readiness
+- Hardware-ready adapter structure for future ESP32 relay control
+- Database schema for lockers, bookings, payments, access codes, logs, users, admins, and sessions
 
 ## Project Structure
 
-```txt
-smart-locker-system/
-  frontend/   Next.js presentation dashboard
-  backend/    NestJS API foundation
-  database/   Prisma schema and database assets
-  docs/       Architecture and implementation notes
+```text
+backend/    NestJS API foundation
+database/   Prisma schema and database assets
+docs/       Architecture, deployment, security, and integration notes
+frontend/   Next.js dashboard and presentation layer
+scripts/    QA, demo, backup, and development utilities
 ```
 
-## Features
-
-- Premium dark smart locker dashboard
-- 60 persistent demo lockers seeded on first backend launch
-- Summary metrics for total, active, available, expired, maintenance, and occupancy percentage
-- NestJS API routes:
-  - `GET /api/lockers`
-  - `GET /api/lockers/:id`
-  - `GET /api/locker/status`
-  - `POST /api/locker/open`
-  - `POST /api/locker/close`
-  - `POST /api/booking/create`
-  - `POST /api/payment/mock`
-  - `POST /api/access/verify`
-  - `GET /api/admin/statistics`
-- Prisma schema and migration for `locker_system`
-- Booking, payment, tariff, access code, log, user, admin, and session models
-- Socket.io realtime updates for locker and booking changes
-- Hardware-ready simulated adapter for future ESP32 relay commands
-
-## Setup
-
-Create environment files:
+## Local Setup
 
 ```bash
 cp frontend/.env.example frontend/.env.local
 cp backend/.env.example backend/.env
-```
-
-Install and run frontend:
-
-```bash
-cd frontend
 npm install
-npm run dev
-```
-
-Install and run backend:
-
-```bash
-cd backend
-npm install
-npm run start:dev
-```
-
-Open:
-
-- Frontend: `http://localhost:3000`
-- Backend API: `http://localhost:4000/api/lockers`
-
-## Database
-
-Create PostgreSQL database:
-
-```sql
-CREATE DATABASE locker_system;
-```
-
-Generate Prisma client from the shared database schema:
-
-```bash
-cd backend
-npx prisma generate
-```
-
-Run migrations when PostgreSQL is available:
-
-```bash
-cd backend
-npx prisma migrate dev --name init
-```
-
-For local prototypes where you want to sync schema without creating another migration:
-
-```bash
-cd backend
-npm run db:push
-```
-
-When the backend starts against an empty database, it automatically seeds 60 demo lockers.
-
-## Self-Healing Diagnostics
-
-Run a full local health check:
-
-```bash
-npm run doctor
-```
-
-The doctor checks:
-
-- `backend/.env` and `DATABASE_URL`
-- PostgreSQL connectivity
-- Prisma client generation
-- Prisma migration status
-- 60-locker seed health
-- Backend API health
-- Frontend server health
-- stale `.next` cache symptoms
-
-Run full project verification:
-
-```bash
-npm run verify
-```
-
-This runs backend lint/build/e2e tests and frontend lint/build.
-
-If Next.js shows a missing compiled chunk such as `Cannot find module './611.js'`, reset the frontend cache:
-
-```bash
-npm run fix:frontend-cache
+npm run dev:backend:watch
 npm run dev:frontend
 ```
 
-## Current Project State
+## Verification Commands
 
-The latest handover notes are stored in:
-
-```txt
-docs/project-state.md
+```bash
+npm run verify
+npm run qa:smoke
 ```
 
-Use this file if the project is reopened later and you need to remember the current database, commands, resolved issues, architecture decisions, and next recommended tasks.
+## Security Notes
 
-Security hardening notes are stored in:
+- Do not commit real `.env` values.
+- Documentation and `.env.example` files may contain placeholder private-key formatting examples only.
+- Real Payme, Click, Google, Eskiz, Telegram, database, and JWT credentials must stay in deployment secrets.
 
-```txt
-docs/security-readiness.md
-```
+## Portfolio Use
 
-TЗ coverage and operator handover notes:
+Use this project as proof for:
 
-```txt
-docs/tz-gap-analysis.md
-docs/operator-guide.md
-```
-
-## Hardware Readiness
-
-The backend already separates locker business actions from hardware commands through a simulated hardware service. Future ESP32 integration should replace or extend `SimulatedHardwareService` with an adapter that sends HTTP, MQTT, or WebSocket commands to physical locker controllers.
+- Admin dashboards
+- Booking systems
+- Real-time management interfaces
+- API architecture
+- PostgreSQL/Prisma data modeling
+- IoT-ready business automation
